@@ -1,8 +1,9 @@
-import * as pdfjsLib from 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs';
-import { PDFDocument, rgb, StandardFonts } from 'https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/+esm';
+import * as pdfjsLib from 'pdfjs-dist/build/pdf.mjs';
+import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
+import fontkit from '@pdf-lib/fontkit';
 import './style.css';
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs';
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.mjs', import.meta.url).toString();
 
 const $ = (id) => document.getElementById(id);
 const state = { pdfBytes: null, pdfDoc: null, page: 1, scale: 1, overlays: new Map(), selected: null, fontBytes: null, fontName: '' };
@@ -101,6 +102,9 @@ async function openPdf(file) {
 }
 
 $('pdf-input').addEventListener('change', (event) => event.target.files[0] && openPdf(event.target.files[0]));
+window.electronAPI?.onOpenFile(async (file) => {
+  await openPdf(new File([new Uint8Array(file.bytes)], file.name, { type: 'application/pdf' }));
+});
 $('add-text').addEventListener('click', () => addText());
 $('delete-text').addEventListener('click', () => {
   if (!state.selected) return;
@@ -141,7 +145,7 @@ $('font-input').addEventListener('change', async (event) => {
 
 async function exportPdf() {
   const doc = await PDFDocument.load(state.pdfBytes);
-  if (state.fontBytes) doc.registerFontkit((await import('https://cdn.jsdelivr.net/npm/@pdf-lib/fontkit@1.1.1/+esm')).default);
+  if (state.fontBytes) doc.registerFontkit(fontkit);
   const font = state.fontBytes ? await doc.embedFont(state.fontBytes) : await doc.embedFont(StandardFonts.Helvetica);
   state.overlays.forEach((items, pageNumber) => {
     const page = doc.getPage(pageNumber - 1);
@@ -155,7 +159,12 @@ async function exportPdf() {
     });
   });
   const bytes = await doc.save();
-  const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
-  const link = document.createElement('a'); link.href = url; link.download = 'edited.pdf'; link.click(); URL.revokeObjectURL(url);
+  if (window.electronAPI) {
+    await window.electronAPI.savePdf(Array.from(bytes));
+  } else {
+    const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+    const link = document.createElement('a'); link.href = url; link.download = 'edited.pdf'; link.click(); URL.revokeObjectURL(url);
+  }
 }
 $('export').addEventListener('click', exportPdf);
+window.electronAPI?.onRequestExport(() => exportPdf());
