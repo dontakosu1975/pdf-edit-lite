@@ -3,6 +3,9 @@ dist/
 release/
 release2/
 *.js.map
+src/shared/*.js
+src/shared/*.d.ts
+src/shared/*.map
 .env
 .DS_Store
 Thumbs.db
