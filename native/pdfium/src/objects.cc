@@ -211,7 +211,8 @@ void EditTextObject(const Napi::CallbackInfo& info) {
       }
     }
     if (!ok && replacement) FPDFPageObj_Destroy(replacement);
-    if (font) FPDFFont_Close(font);
+    if (ok && font) KeepDocumentFont(handle, font);
+    else if (font) FPDFFont_Close(font);
   } else {
     // Fallback for callers that do not provide a replacement font.
     ok = FPDFText_SetText(
@@ -293,7 +294,8 @@ Napi::Value InsertTextObject(const Napi::CallbackInfo& info) {
   int objectId = FPDFPage_CountObjects(page);
   if (ok) ok = FPDFPage_InsertObject(page, obj);
   if (!ok && obj) FPDFPageObj_Destroy(obj);
-  if (font) FPDFFont_Close(font);
+  if (ok && font) KeepDocumentFont(handle, font);
+  else if (font) FPDFFont_Close(font);
   if (!ok) {
     ReleasePage(handle, pageIndex, page, fromCache);
     Napi::Error::New(env, "insertTextObject: failed to create text object")

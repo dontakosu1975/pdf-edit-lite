@@ -15,8 +15,22 @@
 
 std::map<int, FPDF_DOCUMENT> g_documents;
 std::map<int, std::map<int, CachedPage>> g_pageCache;
+std::map<int, std::vector<FPDF_FONT>> g_documentFonts;
 int g_nextHandle = 1;
 bool g_initialized = false;
+
+void KeepDocumentFont(int handle, FPDF_FONT font) {
+  if (font) g_documentFonts[handle].push_back(font);
+}
+
+void CloseDocumentFonts(int handle) {
+  auto it = g_documentFonts.find(handle);
+  if (it == g_documentFonts.end()) return;
+  for (FPDF_FONT font : it->second) {
+    if (font) FPDFFont_Close(font);
+  }
+  g_documentFonts.erase(it);
+}
 
 // ── PDFium library lifecycle ────────────────────────────────────────
 
@@ -113,6 +127,7 @@ static void Cleanup(void* /*arg*/) {
   g_pageCache.clear();
 
   for (auto& [id, doc] : g_documents) {
+    CloseDocumentFonts(id);
     FPDF_CloseDocument(doc);
   }
   g_documents.clear();

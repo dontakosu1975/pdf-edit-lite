@@ -92,6 +92,7 @@ void CloseDocument(const Napi::CallbackInfo& info) {
 
   // Discard any cached pages for this document before closing it.
   DiscardCachedPages(handle);
+  CloseDocumentFonts(handle);
 
   FPDF_CloseDocument(it->second);
   g_documents.erase(it);

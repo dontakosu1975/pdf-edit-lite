@@ -7,6 +7,7 @@
 #include <napi.h>
 #include <fpdfview.h>
 #include <map>
+#include <vector>
 
 // ── Global document registry ────────────────────────────────────────
 
@@ -37,6 +38,13 @@ struct CachedPage {
 
 /** handle → (pageIndex → CachedPage). */
 extern std::map<int, std::map<int, CachedPage>> g_pageCache;
+
+/** Fonts loaded for newly created/rebuilt text objects. They must remain
+ * alive until the owning document is closed so FPDF_SaveAsCopy can embed them. */
+extern std::map<int, std::vector<FPDF_FONT>> g_documentFonts;
+
+void KeepDocumentFont(int handle, FPDF_FONT font);
+void CloseDocumentFonts(int handle);
 
 // ── Utility functions ───────────────────────────────────────────────
 
