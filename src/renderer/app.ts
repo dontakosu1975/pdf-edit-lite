@@ -52,6 +52,7 @@ const pageTotalEl = document.getElementById('page-total') as HTMLSpanElement;
 // Editing tools
 const btnToolSelect = document.getElementById('btn-tool-select') as HTMLButtonElement;
 const btnToolEditText = document.getElementById('btn-tool-edit-text') as HTMLButtonElement;
+const btnToolInsertText = document.getElementById('btn-tool-insert-text') as HTMLButtonElement;
 const btnToolReplaceImage = document.getElementById('btn-tool-replace-image') as HTMLButtonElement;
 const btnUndo = document.getElementById('btn-undo') as HTMLButtonElement;
 const btnRedo = document.getElementById('btn-redo') as HTMLButtonElement;
@@ -61,7 +62,7 @@ const thumbnailsPanel = document.getElementById('thumbnails-panel') as HTMLEleme
 
 // ── State ───────────────────────────────────────────────────────────
 
-type ToolMode = 'select' | 'edit-text' | 'replace-image';
+type ToolMode = 'select' | 'edit-text' | 'insert-text' | 'replace-image';
 
 interface AppState {
   filePath: string | null;
@@ -173,6 +174,7 @@ async function init(): Promise<void> {
   // Editing tools
   btnToolSelect.addEventListener('click', () => setToolMode('select'));
   btnToolEditText.addEventListener('click', () => setToolMode('edit-text'));
+  btnToolInsertText.addEventListener('click', () => setToolMode('insert-text'));
   btnToolReplaceImage.addEventListener('click', () => setToolMode('replace-image'));
   btnUndo.addEventListener('click', () => undoStack.undo());
   btnRedo.addEventListener('click', () => undoStack.redo());
@@ -545,6 +547,11 @@ function handleCanvasClick(e: MouseEvent): void {
   const pdfX = canvasX / scale;
   const pdfY = (overlayCanvas.height - canvasY) / scale; // flip Y for PDF coords
 
+  if (state.toolMode === 'insert-text') {
+    openNewTextEditor(pdfX, pdfY, canvasX, canvasY);
+    return;
+  }
+
   // Hit-test against page objects (last = topmost)
   let hit: PageObject | null = null;
   for (let i = state.pageObjects.length - 1; i >= 0; i--) {
@@ -608,9 +615,9 @@ function openInPlaceTextEditor(obj: PageObject): void {
   editor.textContent = originalText;
 
   const commitEdit = async (): Promise<void> => {
-    const newText = editor.textContent?.trim() ?? '';
+    const newText = editor.textContent ?? '';
     editor.remove();
-    if (!newText || !state.docId) return;
+    if (!state.docId || newText === originalText) return;
 
     const docId = state.docId;
     const pageIndex = state.currentPage;
@@ -619,7 +626,11 @@ function openInPlaceTextEditor(obj: PageObject): void {
     const cmd: EditCommand = {
       description: `Edit text object ${objectId}`,
       async execute(): Promise<void> {
-        await window.api.pdf.editText({ docId, pageIndex, objectId, newText });
+        // PDFium rejects a truly empty string. A space is visually blank but
+        // keeps the deletion reversible with Ctrl+Z.
+        await window.api.pdf.editText({
+          docId, pageIndex, objectId, newText: newText || ' ',
+        });
         markDirty();
         await renderCurrentPage();
       },
@@ -659,6 +670,71 @@ function openInPlaceTextEditor(obj: PageObject): void {
     sel.removeAllRanges();
     sel.addRange(range);
   }
+}
+
+/** Open an editor at an empty page position and insert a new text object. */
+function openNewTextEditor(pdfX: number, pdfY: number, canvasX: number, canvasY: number): void {
+  const existing = document.getElementById('in-place-editor');
+  if (existing) existing.remove();
+
+  const scale = state.zoomPercent / 100;
+  const editor = document.createElement('div');
+  editor.id = 'in-place-editor';
+  editor.contentEditable = 'true';
+  editor.className = 'in-place-text-editor new-text-editor';
+  editor.style.left = `${canvasX}px`;
+  editor.style.top = `${canvasY - 14 * scale}px`;
+  editor.style.width = `${180 * scale}px`;
+  editor.style.minHeight = `${18 * scale}px`;
+  editor.style.fontSize = `${12 * scale}px`;
+  editor.dataset.placeholder = '文字を入力';
+
+  let committed = false;
+  const commitInsert = async (): Promise<void> => {
+    if (committed) return;
+    committed = true;
+    const newText = editor.textContent ?? '';
+    editor.remove();
+    if (!state.docId || !newText.trim()) return;
+
+    const docId = state.docId;
+    const pageIndex = state.currentPage;
+    let insertedObjectId = -1;
+    const cmd: EditCommand = {
+      description: 'Insert text object',
+      async execute(): Promise<void> {
+        const result = await window.api.pdf.insertText({
+          docId, pageIndex, x: pdfX, y: pdfY, newText, fontSize: 12,
+        });
+        insertedObjectId = result.objectId;
+        markDirty();
+        await renderCurrentPage();
+      },
+      async undo(): Promise<void> {
+        if (insertedObjectId < 0) return;
+        await window.api.pdf.removeText({ docId, pageIndex, objectId: insertedObjectId });
+        markDirty();
+        await renderCurrentPage();
+      },
+    };
+    await undoStack.push(cmd);
+  };
+
+  editor.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      void commitInsert();
+    }
+    if (e.key === 'Escape') {
+      committed = true;
+      editor.remove();
+    }
+  });
+  editor.addEventListener('blur', () => {
+    if (editor.parentElement) void commitInsert();
+  });
+  viewerContainer.appendChild(editor);
+  editor.focus();
 }
 
 // ── Image replacement ───────────────────────────────────────────────
@@ -710,6 +786,7 @@ function setToolMode(mode: ToolMode): void {
   state.toolMode = mode;
   btnToolSelect.classList.toggle('active', mode === 'select');
   btnToolEditText.classList.toggle('active', mode === 'edit-text');
+  btnToolInsertText.classList.toggle('active', mode === 'insert-text');
   btnToolReplaceImage.classList.toggle('active', mode === 'replace-image');
   overlayCanvas.style.cursor = mode === 'select' ? 'default' : 'crosshair';
 }
@@ -781,6 +858,7 @@ function handleKeyboard(e: KeyboardEvent): void {
   // Tool shortcuts
   if (e.key === 'v' && !mod) { setToolMode('select'); }
   if (e.key === 't' && !mod) { setToolMode('edit-text'); }
+  if (e.key === 'n' && !mod) { setToolMode('insert-text'); }
   if (e.key === 'i' && !mod) { setToolMode('replace-image'); }
 
   // Escape deselects
@@ -804,6 +882,7 @@ function enableDocumentControls(): void {
   pageInput.disabled = false;
   btnToolSelect.disabled = false;
   btnToolEditText.disabled = false;
+  btnToolInsertText.disabled = false;
   btnToolReplaceImage.disabled = false;
 }
 

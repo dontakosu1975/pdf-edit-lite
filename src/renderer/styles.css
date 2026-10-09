@@ -252,6 +252,12 @@ html, body {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
+.new-text-editor:empty::before {
+  content: attr(data-placeholder);
+  color: #666;
+  pointer-events: none;
+}
+
 /* ── Properties panel ─────────────────────────────────────────── */
 .properties-content {
   padding: 8px;

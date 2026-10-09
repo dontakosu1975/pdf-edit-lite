@@ -73,6 +73,21 @@ interface PdfEditTextPayload {
   fontSize?: number;
 }
 
+interface PdfInsertTextPayload {
+  docId: string;
+  pageIndex: number;
+  x: number;
+  y: number;
+  newText: string;
+  fontSize?: number;
+}
+
+interface PdfRemoveTextPayload {
+  docId: string;
+  pageIndex: number;
+  objectId: number;
+}
+
 interface PdfReplaceImagePayload {
   docId: string;
   pageIndex: number;
@@ -98,6 +113,8 @@ interface PdfApi {
   renderPage(payload: PdfRenderPagePayload): Promise<PdfRenderResult>;
   listObjects(payload: PdfListObjectsPayload): Promise<PageObject[]>;
   editText(payload: PdfEditTextPayload): Promise<{ ok: true }>;
+  insertText(payload: PdfInsertTextPayload): Promise<{ objectId: number }>;
+  removeText(payload: PdfRemoveTextPayload): Promise<{ ok: true }>;
   replaceImage(payload: PdfReplaceImagePayload): Promise<{ ok: true }>;
   save(payload: PdfSavePayload): Promise<PdfSaveResult>;
   onPageRendered(callback: (payload: { docId: string; pageIndex: number }) => void): () => void;

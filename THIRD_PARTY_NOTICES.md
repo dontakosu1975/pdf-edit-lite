@@ -11,3 +11,11 @@ The Electron/PDFium editor architecture and implementation in this repository ar
 ## PDFium
 
 PDFium is downloaded from https://github.com/bblanchon/pdfium-binaries by the upstream build script. Review the upstream PDFium and Chromium licensing files before distributing packaged binaries.
+
+## Noto Sans Japanese
+
+The bundled `assets/fonts/NotoSansJP-Regular.otf` is Noto Sans Japanese, used
+when editing or inserting text so Japanese and ASCII characters share a font.
+It is distributed under the SIL Open Font License 1.1. See the upstream
+license at https://openfontlicense.org/ and the Noto CJK project at
+https://github.com/notofonts/noto-cjk.

@@ -145,6 +145,10 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
     Napi::Function::New(env, ListPageObjects));
   exports.Set("editTextObject",
     Napi::Function::New(env, EditTextObject));
+  exports.Set("insertTextObject",
+    Napi::Function::New(env, InsertTextObject));
+  exports.Set("removeTextObject",
+    Napi::Function::New(env, RemoveTextObject));
   exports.Set("replaceImageObject",
     Napi::Function::New(env, ReplaceImageObject));
   exports.Set("replaceImageObjectBitmap",

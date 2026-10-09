@@ -19,6 +19,8 @@ import {
   type PdfListObjectsPayload,
   type PageObject,
   type PdfEditTextPayload,
+  type PdfInsertTextPayload,
+  type PdfRemoveTextPayload,
   type PdfReplaceImagePayload,
   type PdfSavePayload,
   type PdfSaveResult,
@@ -318,6 +320,31 @@ export function registerIpcHandlers(): void {
         payload.fontName,
         payload.fontSize,
       );
+      bitmapCache.invalidatePage(payload.docId, payload.pageIndex);
+      return { ok: true };
+    },
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.PDF_INSERT_TEXT,
+    async (_event, payload: PdfInsertTextPayload): Promise<{ objectId: number }> => {
+      const objectId = pdfiumEngine.insertTextObject(
+        payload.docId,
+        payload.pageIndex,
+        payload.x,
+        payload.y,
+        payload.newText,
+        payload.fontSize,
+      );
+      bitmapCache.invalidatePage(payload.docId, payload.pageIndex);
+      return { objectId };
+    },
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.PDF_REMOVE_TEXT,
+    async (_event, payload: PdfRemoveTextPayload): Promise<{ ok: true }> => {
+      pdfiumEngine.removeTextObject(payload.docId, payload.pageIndex, payload.objectId);
       bitmapCache.invalidatePage(payload.docId, payload.pageIndex);
       return { ok: true };
     },

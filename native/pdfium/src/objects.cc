@@ -12,6 +12,7 @@
 #include <cstring>
 #include <string>
 #include <vector>
+#include <algorithm>
 
 // ── Object type name mapping ────────────────────────────────────────
 
@@ -127,6 +128,17 @@ void EditTextObject(const Napi::CallbackInfo& info) {
   // Get text as UTF-16LE for PDFium's FPDF_WIDESTRING
   std::u16string newText = info[3].As<Napi::String>().Utf16Value();
 
+  // An optional Japanese-capable font is supplied by the main process. The
+  // original PDF often embeds a subset font that has Japanese glyphs but no
+  // ASCII glyphs, causing company names and numbers to render as tofu boxes.
+  const uint8_t* fontData = nullptr;
+  uint32_t fontDataSize = 0;
+  if (info.Length() >= 7 && info[6].IsBuffer()) {
+    auto buffer = info[6].As<Napi::Buffer<uint8_t>>();
+    fontData = buffer.Data();
+    fontDataSize = static_cast<uint32_t>(buffer.Length());
+  }
+
   FPDF_DOCUMENT doc = RequireDocument(env, handle);
   if (!doc) return;
 
@@ -162,11 +174,51 @@ void EditTextObject(const Napi::CallbackInfo& info) {
     return;
   }
 
-  // Set text content (FPDF_WIDESTRING = const unsigned short* or const wchar_t*)
-  FPDF_BOOL ok = FPDFText_SetText(
-    obj,
-    reinterpret_cast<FPDF_WIDESTRING>(newText.c_str())
-  );
+  FPDF_BOOL ok = 0;
+
+  if (fontData && fontDataSize > 0) {
+    // Rebuild the object with a Unicode-capable embedded font while retaining
+    // its transform, font size, render mode, and original object index.
+    FS_MATRIX matrix{};
+    FPDFPageObj_GetMatrix(obj, &matrix);
+    float fontSize = 12.0f;
+    FPDFTextObj_GetFontSize(obj, &fontSize);
+    FPDF_TEXT_RENDERMODE renderMode = FPDFTextObj_GetTextRenderMode(obj);
+
+    FPDF_FONT font = FPDFText_LoadFont(
+      doc, fontData, fontDataSize, FPDF_FONT_TRUETYPE, /*cid=*/true
+    );
+    FPDF_PAGEOBJECT replacement = font
+      ? FPDFPageObj_CreateTextObj(doc, font, fontSize)
+      : nullptr;
+    if (replacement) {
+      ok = FPDFText_SetText(
+        replacement,
+        reinterpret_cast<FPDF_WIDESTRING>(newText.c_str())
+      );
+      if (ok) ok = FPDFPageObj_SetMatrix(replacement, &matrix);
+      if (ok && renderMode != FPDF_TEXTRENDERMODE_UNKNOWN) {
+        ok = FPDFTextObj_SetTextRenderMode(replacement, renderMode);
+      }
+    }
+
+    if (ok) {
+      int insertIndex = objectId;
+      if (FPDFPage_RemoveObject(page, obj)) {
+        ok = FPDFPage_InsertObjectAtIndex(page, replacement, insertIndex);
+      } else {
+        ok = 0;
+      }
+    }
+    if (!ok && replacement) FPDFPageObj_Destroy(replacement);
+    if (font) FPDFFont_Close(font);
+  } else {
+    // Fallback for callers that do not provide a replacement font.
+    ok = FPDFText_SetText(
+      obj,
+      reinterpret_cast<FPDF_WIDESTRING>(newText.c_str())
+    );
+  }
 
   if (!ok) {
     ReleasePage(handle, pageIndex, page, fromCache);
@@ -180,6 +232,116 @@ void EditTextObject(const Napi::CallbackInfo& info) {
   // use subset fonts or TJ-based word spacing.  Instead we keep the
   // page open so that renders use the correct in-memory objects, and
   // we defer GenerateContent to save time (FlushAndCloseCachedPages).
+  CachePageDirty(handle, pageIndex, page);
+}
+
+// ── insertTextObject / removeTextObject ────────────────────────────
+
+Napi::Value InsertTextObject(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  if (info.Length() < 6 ||
+      !info[0].IsNumber() || !info[1].IsNumber() ||
+      !info[2].IsNumber() || !info[3].IsNumber() ||
+      !info[4].IsString() || !info[5].IsBuffer()) {
+    Napi::TypeError::New(env,
+      "insertTextObject: requires (handle, pageIndex, x, y, newText, fontData, fontSize?)"
+    ).ThrowAsJavaScriptException();
+    return env.Undefined();
+  }
+
+  int handle = info[0].As<Napi::Number>().Int32Value();
+  int pageIndex = info[1].As<Napi::Number>().Int32Value();
+  float x = info[2].As<Napi::Number>().FloatValue();
+  float y = info[3].As<Napi::Number>().FloatValue();
+  std::u16string text = info[4].As<Napi::String>().Utf16Value();
+  auto fontBuffer = info[5].As<Napi::Buffer<uint8_t>>();
+  float fontSize = 12.0f;
+  if (info.Length() >= 7 && info[6].IsNumber()) {
+    fontSize = info[6].As<Napi::Number>().FloatValue();
+  }
+  if (text.empty() || fontSize <= 0.0f) {
+    Napi::RangeError::New(env, "insertTextObject: text and fontSize are required")
+      .ThrowAsJavaScriptException();
+    return env.Undefined();
+  }
+
+  FPDF_DOCUMENT doc = RequireDocument(env, handle);
+  if (!doc) return env.Undefined();
+  bool fromCache = false;
+  FPDF_PAGE page = AcquirePage(handle, doc, pageIndex, fromCache);
+  if (!page) {
+    Napi::Error::New(env, "insertTextObject: failed to load page")
+      .ThrowAsJavaScriptException();
+    return env.Undefined();
+  }
+
+  FPDF_FONT font = FPDFText_LoadFont(
+    doc, fontBuffer.Data(), static_cast<uint32_t>(fontBuffer.Length()),
+    FPDF_FONT_TRUETYPE, /*cid=*/true
+  );
+  FPDF_PAGEOBJECT obj = font
+    ? FPDFPageObj_CreateTextObj(doc, font, fontSize)
+    : nullptr;
+  FPDF_BOOL ok = obj != nullptr;
+  if (ok) {
+    ok = FPDFText_SetText(obj, reinterpret_cast<FPDF_WIDESTRING>(text.c_str()));
+  }
+  if (ok) {
+    FS_MATRIX matrix{1.0f, 0.0f, 0.0f, 1.0f, x, y};
+    ok = FPDFPageObj_SetMatrix(obj, &matrix);
+  }
+  int objectId = FPDFPage_CountObjects(page);
+  if (ok) ok = FPDFPage_InsertObject(page, obj);
+  if (!ok && obj) FPDFPageObj_Destroy(obj);
+  if (font) FPDFFont_Close(font);
+  if (!ok) {
+    ReleasePage(handle, pageIndex, page, fromCache);
+    Napi::Error::New(env, "insertTextObject: failed to create text object")
+      .ThrowAsJavaScriptException();
+    return env.Undefined();
+  }
+
+  CachePageDirty(handle, pageIndex, page);
+  return Napi::Number::New(env, objectId);
+}
+
+void RemoveTextObject(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  if (info.Length() < 3 || !info[0].IsNumber() ||
+      !info[1].IsNumber() || !info[2].IsNumber()) {
+    Napi::TypeError::New(env,
+      "removeTextObject: requires (handle, pageIndex, objectId)"
+    ).ThrowAsJavaScriptException();
+    return;
+  }
+  int handle = info[0].As<Napi::Number>().Int32Value();
+  int pageIndex = info[1].As<Napi::Number>().Int32Value();
+  int objectId = info[2].As<Napi::Number>().Int32Value();
+  FPDF_DOCUMENT doc = RequireDocument(env, handle);
+  if (!doc) return;
+  bool fromCache = false;
+  FPDF_PAGE page = AcquirePage(handle, doc, pageIndex, fromCache);
+  if (!page) {
+    Napi::Error::New(env, "removeTextObject: failed to load page")
+      .ThrowAsJavaScriptException();
+    return;
+  }
+  if (objectId < 0 || objectId >= FPDFPage_CountObjects(page)) {
+    ReleasePage(handle, pageIndex, page, fromCache);
+    Napi::RangeError::New(env, "removeTextObject: objectId out of range")
+      .ThrowAsJavaScriptException();
+    return;
+  }
+  FPDF_PAGEOBJECT obj = FPDFPage_GetObject(page, objectId);
+  FPDF_BOOL ok = FPDFPageObj_GetType(obj) == FPDF_PAGEOBJ_TEXT &&
+                 FPDFPage_RemoveObject(page, obj);
+  if (!ok) {
+    ReleasePage(handle, pageIndex, page, fromCache);
+    Napi::Error::New(env, "removeTextObject: failed to remove object")
+      .ThrowAsJavaScriptException();
+    return;
+  }
+  FPDFPageObj_Destroy(obj);
   CachePageDirty(handle, pageIndex, page);
 }
 

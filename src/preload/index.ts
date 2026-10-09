@@ -19,6 +19,8 @@ import {
   type PdfListObjectsPayload,
   type PageObject,
   type PdfEditTextPayload,
+  type PdfInsertTextPayload,
+  type PdfRemoveTextPayload,
   type PdfReplaceImagePayload,
   type PdfSavePayload,
   type PdfSaveResult,
@@ -105,6 +107,12 @@ const api = {
 
     editText: (payload: PdfEditTextPayload): Promise<{ ok: true }> =>
       ipcRenderer.invoke(IPC_CHANNELS.PDF_EDIT_TEXT, payload),
+
+    insertText: (payload: PdfInsertTextPayload): Promise<{ objectId: number }> =>
+      ipcRenderer.invoke(IPC_CHANNELS.PDF_INSERT_TEXT, payload),
+
+    removeText: (payload: PdfRemoveTextPayload): Promise<{ ok: true }> =>
+      ipcRenderer.invoke(IPC_CHANNELS.PDF_REMOVE_TEXT, payload),
 
     replaceImage: (payload: PdfReplaceImagePayload): Promise<{ ok: true }> =>
       ipcRenderer.invoke(IPC_CHANNELS.PDF_REPLACE_IMAGE, payload),

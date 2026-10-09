@@ -40,6 +40,8 @@ export const IPC_CHANNELS = {
   PDF_RENDER_PAGE: 'pdf:render-page',
   PDF_LIST_OBJECTS: 'pdf:list-objects',
   PDF_EDIT_TEXT: 'pdf:edit-text',
+  PDF_INSERT_TEXT: 'pdf:insert-text',
+  PDF_REMOVE_TEXT: 'pdf:remove-text',
   PDF_REPLACE_IMAGE: 'pdf:replace-image',
   PDF_SAVE: 'pdf:save',
 
@@ -144,6 +146,23 @@ export interface PdfEditTextPayload {
   newText: string;
   fontName?: string;
   fontSize?: number;
+}
+
+/** Payload for inserting a new text object. Coordinates use PDF points. */
+export interface PdfInsertTextPayload {
+  docId: string;
+  pageIndex: number;
+  x: number;
+  y: number;
+  newText: string;
+  fontSize?: number;
+}
+
+/** Payload for removing an inserted text object. */
+export interface PdfRemoveTextPayload {
+  docId: string;
+  pageIndex: number;
+  objectId: number;
 }
 
 /** Payload for replacing an image object. */

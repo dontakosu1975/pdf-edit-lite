@@ -11,6 +11,7 @@
 
 import { randomUUID } from 'node:crypto';
 import * as path from 'node:path';
+import * as fs from 'node:fs';
 import { app, nativeImage } from 'electron';
 import type {
   PdfOpenResult,
@@ -87,7 +88,18 @@ interface PdfiumAddon {
     newText: string,
     fontName?: string,
     fontSize?: number,
+    fontData?: Buffer,
   ): void;
+  insertTextObject(
+    handle: number,
+    pageIndex: number,
+    x: number,
+    y: number,
+    newText: string,
+    fontData: Buffer,
+    fontSize?: number,
+  ): number;
+  removeTextObject(handle: number, pageIndex: number, objectId: number): void;
   replaceImageObject(
     handle: number,
     pageIndex: number,
@@ -126,6 +138,8 @@ const STUB_ADDON: PdfiumAddon = {
     return [];
   },
   editTextObject() { /* no-op */ },
+  insertTextObject(_handle: number, _pageIndex: number, _x: number, _y: number, _newText: string, _fontData: Buffer, _fontSize?: number): number { return 0; },
+  removeTextObject() { /* no-op */ },
   replaceImageObject() { /* no-op */ },
   replaceImageObjectBitmap() { /* no-op */ },
   saveDocument(_handle: number): Buffer {
@@ -173,6 +187,27 @@ function loadAddon(): PdfiumAddon {
   }
 }
 
+/**
+ * Use a bundled Japanese-capable font when rebuilding text objects.  The
+ * original PDF font is often a subset and may contain Japanese glyphs but no
+ * ASCII glyphs, which is what produces tofu boxes for company names/numbers.
+ */
+function loadEditorFontData(): Buffer | undefined {
+  const candidates = [
+    path.join(app.getAppPath(), 'assets', 'fonts', 'NotoSansJP-Regular.otf'),
+    path.join(process.resourcesPath, 'assets', 'fonts', 'NotoSansJP-Regular.otf'),
+  ];
+  for (const candidate of candidates) {
+    try {
+      return fs.readFileSync(candidate);
+    } catch {
+      // Try the next packaged/development location.
+    }
+  }
+  console.warn('[PdfiumEngine] Editor font was not found; keeping original font');
+  return undefined;
+}
+
 // ── PdfiumEngine class ──────────────────────────────────────────────
 
 export class PdfiumEngine {
@@ -185,6 +220,7 @@ export class PdfiumEngine {
    * Released when the document is closed.
    */
   private readonly pinnedBuffers = new Map<string, Buffer>();
+  private readonly editorFontData = loadEditorFontData();
 
   constructor() {
     this.addon = loadAddon();
@@ -306,11 +342,54 @@ export class PdfiumEngine {
     }
 
     try {
-      this.addon.editTextObject(handle, pageIndex, objectId, newText, fontName, fontSize);
+      this.addon.editTextObject(
+        handle, pageIndex, objectId, newText, fontName, fontSize, this.editorFontData,
+      );
     } catch (err) {
       throw new PdfiumError(
         PDFIUM_ERROR_CODES.EDIT_FAILED,
         `Text edit failed: ${(err as Error).message}`,
+      );
+    }
+  }
+
+  /** Insert a new text object at PDF coordinates. */
+  insertTextObject(
+    docId: string,
+    pageIndex: number,
+    x: number,
+    y: number,
+    newText: string,
+    fontSize?: number,
+  ): number {
+    const handle = this.requireHandle(docId);
+    if (!newText.trim()) {
+      throw new PdfiumError(PDFIUM_ERROR_CODES.INVALID_INPUT, 'newText must not be empty');
+    }
+    if (!this.editorFontData) {
+      throw new PdfiumError(PDFIUM_ERROR_CODES.EDIT_FAILED, 'Japanese-capable editor font is unavailable');
+    }
+    try {
+      return this.addon.insertTextObject(
+        handle, pageIndex, x, y, newText, this.editorFontData, fontSize,
+      );
+    } catch (err) {
+      throw new PdfiumError(
+        PDFIUM_ERROR_CODES.EDIT_FAILED,
+        `Text insertion failed: ${(err as Error).message}`,
+      );
+    }
+  }
+
+  /** Remove a text object, used by insertion undo. */
+  removeTextObject(docId: string, pageIndex: number, objectId: number): void {
+    const handle = this.requireHandle(docId);
+    try {
+      this.addon.removeTextObject(handle, pageIndex, objectId);
+    } catch (err) {
+      throw new PdfiumError(
+        PDFIUM_ERROR_CODES.EDIT_FAILED,
+        `Text removal failed: ${(err as Error).message}`,
       );
     }
   }

@@ -13,10 +13,22 @@
 Napi::Value ListPageObjects(const Napi::CallbackInfo& info);
 
 /**
- * editTextObject(handle, pageIndex, objectId, newText, fontName?, fontSize?)
+ * editTextObject(handle, pageIndex, objectId, newText, fontName?, fontSize?, fontData?)
  * → void
  */
 void EditTextObject(const Napi::CallbackInfo& info);
+
+/**
+ * insertTextObject(handle, pageIndex, x, y, newText, fontData, fontSize?)
+ * → object id
+ */
+Napi::Value InsertTextObject(const Napi::CallbackInfo& info);
+
+/**
+ * removeTextObject(handle, pageIndex, objectId)
+ * → void
+ */
+void RemoveTextObject(const Napi::CallbackInfo& info);
 
 /**
  * replaceImageObject(handle, pageIndex, objectId, imageData, format)
