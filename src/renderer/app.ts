@@ -64,9 +64,11 @@ const btnDeleteText = document.getElementById('btn-delete-text') as HTMLButtonEl
 const fontSizeInput = document.getElementById('font-size') as HTMLInputElement;
 const textColorMode = document.getElementById('text-color-mode') as HTMLSelectElement;
 const textColorInput = document.getElementById('text-color') as HTMLInputElement;
+const textFormatSection = document.getElementById('text-format-section') as HTMLDivElement;
 
 // Thumbnails panel
 const thumbnailsPanel = document.getElementById('thumbnails-panel') as HTMLElement;
+const thumbnailList = document.getElementById('thumbnail-list') as HTMLElement;
 
 // ── State ───────────────────────────────────────────────────────────
 
@@ -176,6 +178,16 @@ function selectedFontSize(): number | undefined {
 
 function selectedTextColor(): string | undefined {
   return textColorMode.value === 'custom' ? textColorInput.value : undefined;
+}
+
+function updateTextFormatAvailability(): void {
+  const selectedText = state.selectedObjectId !== null &&
+    state.pageObjects.some((obj) => obj.id === state.selectedObjectId && obj.type === 'text');
+  const available = Boolean(state.docId) && (selectedText || state.toolMode === 'insert-text');
+  for (const control of [fontSelect, fontSizeInput, textColorMode, textColorInput]) {
+    control.disabled = !available;
+  }
+  textFormatSection.classList.toggle('available', available);
 }
 
 // ── Initialization ──────────────────────────────────────────────────
@@ -518,7 +530,7 @@ function drawSelectionOverlay(): void {
 async function buildThumbnails(): Promise<void> {
   if (!state.docId) return;
 
-  thumbnailsPanel.innerHTML = '';
+  thumbnailList.innerHTML = '';
   const THUMB_SCALE = 0.2;
 
   for (let i = 0; i < state.pageCount; i++) {
@@ -536,7 +548,7 @@ async function buildThumbnails(): Promise<void> {
 
     wrapper.appendChild(canvas);
     wrapper.appendChild(label);
-    thumbnailsPanel.appendChild(wrapper);
+    thumbnailList.appendChild(wrapper);
 
     wrapper.addEventListener('click', () => goToPage(i));
 
@@ -565,7 +577,7 @@ async function buildThumbnails(): Promise<void> {
 }
 
 function updateActiveThumbnail(): void {
-  const items = thumbnailsPanel.querySelectorAll('.thumbnail-item');
+  const items = thumbnailList.querySelectorAll('.thumbnail-item');
   items.forEach((el, idx) => {
     el.classList.toggle('active', idx === state.currentPage);
   });
@@ -577,6 +589,7 @@ async function goToPage(pageIndex: number): Promise<void> {
   if (pageIndex < 0 || pageIndex >= state.pageCount) return;
   state.currentPage = pageIndex;
   state.selectedObjectId = null;
+  updateTextFormatAvailability();
   updatePageInfo();
   updateActiveThumbnail();
   await renderCurrentPage();
@@ -621,6 +634,7 @@ function handleCanvasClick(e: MouseEvent): void {
 
   state.selectedObjectId = hit ? hit.id : null;
   if (hit?.type === 'text') syncFontPickerToObject(hit.id);
+  updateTextFormatAvailability();
   drawSelectionOverlay();
   updatePropertiesPanel(hit);
 }
@@ -684,6 +698,7 @@ function handleCanvasContextMenu(e: MouseEvent): void {
   state.selectedObjectId = hit.id;
   contextMenuObjectId = hit.id;
   syncFontPickerToObject(hit.id);
+  updateTextFormatAvailability();
   drawSelectionOverlay();
   updatePropertiesPanel(hit);
   textContextMenu.hidden = false;
@@ -794,7 +809,7 @@ async function applyStyleToSelectedText(): Promise<void> {
 }
 
 function handleCanvasMouseDown(e: MouseEvent): void {
-  if (!state.docId || state.toolMode !== 'move-text') return;
+  if (!state.docId || (state.toolMode !== 'move-text' && state.toolMode !== 'select')) return;
   const rect = overlayCanvas.getBoundingClientRect();
   const scale = state.zoomPercent / 100;
   const x = (e.clientX - rect.left) / scale;
@@ -804,6 +819,7 @@ function handleCanvasMouseDown(e: MouseEvent): void {
     if (obj.type === 'text' && x >= obj.left && x <= obj.right && y >= obj.bottom && y <= obj.top) {
       state.selectedObjectId = obj.id;
       syncFontPickerToObject(obj.id);
+      updateTextFormatAvailability();
       drawSelectionOverlay();
       updatePropertiesPanel(obj);
       dragMove = { objectId: obj.id, startX: e.clientX, startY: e.clientY };
@@ -822,7 +838,7 @@ function handleCanvasMouseUp(e: MouseEvent): void {
   if (!dragMove || !state.docId) return;
   const drag = dragMove;
   dragMove = null;
-  overlayCanvas.style.cursor = 'crosshair';
+  overlayCanvas.style.cursor = state.toolMode === 'select' ? 'default' : 'crosshair';
   const scale = state.zoomPercent / 100;
   const dx = (e.clientX - drag.startX) / scale;
   const dy = -(e.clientY - drag.startY) / scale;
@@ -1126,6 +1142,7 @@ function setToolMode(mode: ToolMode): void {
   btnToolMoveText.classList.toggle('active', mode === 'move-text');
   btnToolReplaceImage.classList.toggle('active', mode === 'replace-image');
   overlayCanvas.style.cursor = mode === 'select' ? 'default' : 'crosshair';
+  updateTextFormatAvailability();
 }
 
 // ── Properties panel ────────────────────────────────────────────────
@@ -1218,6 +1235,7 @@ function handleKeyboard(e: KeyboardEvent): void {
     state.selectedObjectId = null;
     drawSelectionOverlay();
     updatePropertiesPanel(null);
+    updateTextFormatAvailability();
   }
 }
 
@@ -1237,6 +1255,7 @@ function enableDocumentControls(): void {
   btnToolInsertText.disabled = false;
   btnToolMoveText.disabled = false;
   btnToolReplaceImage.disabled = false;
+  updateTextFormatAvailability();
 }
 
 function updatePageInfo(): void {

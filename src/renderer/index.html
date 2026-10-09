@@ -40,32 +40,6 @@
 
     <span class="toolbar-separator"></span>
 
-    <!-- Editing tools -->
-    <button id="btn-tool-select" title="選択ツール（V）" disabled class="tool-btn active">選択</button>
-    <button id="btn-tool-edit-text" title="文字を編集（T）" disabled class="tool-btn">文字編集</button>
-    <button id="btn-tool-insert-text" title="文字を挿入（N）" disabled class="tool-btn">文字挿入</button>
-    <button id="btn-tool-move-text" title="文字列を移動（M）" disabled class="tool-btn">文字列を移動</button>
-    <button id="btn-tool-replace-image" title="画像を置換（I）" disabled class="tool-btn">画像置換</button>
-
-    <button id="btn-commit-edit" title="編集中の文字を確定" disabled>編集を確定</button>
-    <label class="font-picker-label" for="font-select">フォント</label>
-    <select id="font-select" title="編集に使うフォント">
-      <option value="auto">自動</option>
-      <option value="original">元PDFのフォント</option>
-      <option value="meiryob_3.ttc" selected>メイリオ（meiryob_3.ttc）</option>
-      <option value="ume">梅ゴシック</option>
-    </select>
-    <label class="font-picker-label" for="font-size">サイズ</label>
-    <input id="font-size" type="number" min="1" max="200" step="0.5" value="12" title="文字サイズ（pt）" />
-    <label class="font-picker-label" for="text-color-mode">色</label>
-    <select id="text-color-mode" title="文字色">
-      <option value="original">元の色</option>
-      <option value="custom">指定色</option>
-    </select>
-    <input id="text-color" type="color" value="#000000" title="文字色を選択" />
-
-    <span class="toolbar-separator"></span>
-
     <!-- Undo / Redo -->
     <button id="btn-undo" title="元に戻す（Ctrl+Z）" disabled>元に戻す</button>
     <button id="btn-redo" title="やり直す（Ctrl+Shift+Z）" disabled>やり直す</button>
@@ -76,9 +50,45 @@
 
   <!-- ── Main workspace ──────────────────────────────────────── -->
   <main id="workspace">
-    <aside id="thumbnails-panel">
-      <!-- Thumbnails rendered here by Task 1-2 -->
-      <p class="placeholder">ページ一覧</p>
+    <aside id="left-sidebar">
+      <section id="thumbnails-panel">
+        <div class="sidebar-heading">ページ</div>
+        <div id="thumbnail-list">
+          <p class="placeholder">ページ一覧</p>
+        </div>
+      </section>
+      <section id="edit-panel" aria-label="PDF編集">
+        <div class="sidebar-heading">PDF編集</div>
+        <div class="tool-section">
+          <button id="btn-tool-select" title="選択ツール（V）" disabled class="tool-btn active"><span>↖</span> 選択</button>
+          <button id="btn-tool-edit-text" title="文字を編集（T）" disabled class="tool-btn"><span>T</span> 文字を編集</button>
+          <button id="btn-tool-insert-text" title="文字を挿入（N）" disabled class="tool-btn"><span>＋</span> 文字を追加</button>
+          <button id="btn-tool-move-text" title="文字列を移動（M）" disabled class="tool-btn"><span>✥</span> 文字を移動</button>
+          <button id="btn-tool-replace-image" title="画像を置換（I）" disabled class="tool-btn"><span>▧</span> 画像を置換</button>
+        </div>
+        <div id="text-format-section" class="text-format-section" aria-label="文字の書式">
+          <div class="format-heading">文字の書式</div>
+          <label for="font-select">フォント</label>
+          <select id="font-select" title="編集に使うフォント" disabled>
+            <option value="auto">自動</option>
+            <option value="original">元PDFのフォント</option>
+            <option value="meiryob_3.ttc" selected>メイリオ（太字）</option>
+            <option value="ume">梅ゴシック</option>
+          </select>
+          <label for="font-size">サイズ（pt）</label>
+          <input id="font-size" type="number" min="1" max="200" step="0.5" value="12" placeholder="元" title="文字サイズ（pt）" disabled />
+          <label for="text-color-mode">文字色</label>
+          <div class="color-row">
+            <select id="text-color-mode" title="文字色" disabled>
+              <option value="original">元の色</option>
+              <option value="custom">指定色</option>
+            </select>
+            <input id="text-color" type="color" value="#000000" title="文字色を選択" disabled />
+          </div>
+          <button id="btn-commit-edit" class="commit-btn" title="編集中の文字を確定" disabled>✓ 編集を確定</button>
+        </div>
+        <p class="edit-hint">文字を選択すると書式を変更できます。選択した文字はそのままドラッグして移動できます。</p>
+      </section>
     </aside>
     <section id="viewer-container">
       <!-- Canvas-based PDF rendering via PDFium -->
