@@ -713,7 +713,9 @@ function syncFontPickerToObject(objectId: number): void {
   }
   rememberTextStyle({
     fontName: choice,
-    fontSize: objectFontSizes.get(objectId) ?? object?.fontSize,
+    fontSize: object
+      ? Math.max(0.1, object.top - object.bottom)
+      : objectFontSizes.get(objectId),
     textColor,
   });
 }
@@ -1085,8 +1087,12 @@ function openNewTextEditor(pdfX: number, pdfY: number, canvasX: number, canvasY:
     const docId = state.docId;
     const pageIndex = state.currentPage;
     const rememberedStyle = lastTextStyle;
+    const sourceObject = state.selectedObjectId === null ? null :
+      state.pageObjects.find((candidate) => candidate.id === state.selectedObjectId && candidate.type === 'text');
     const insertedFontName = rememberedStyle ? rememberedStyle.fontName : selectedFontName();
-    const insertedFontSize = rememberedStyle?.fontSize ?? selectedFontSize() ?? 12;
+    const insertedFontSize = sourceObject
+      ? Math.max(0.1, sourceObject.top - sourceObject.bottom)
+      : rememberedStyle?.fontSize ?? selectedFontSize() ?? 12;
     const insertedTextColor = rememberedStyle ? rememberedStyle.textColor : selectedTextColor();
     let insertedObjectId = -1;
     const cmd: EditCommand = {
@@ -1262,7 +1268,7 @@ async function pasteTextObject(): Promise<void> {
   const fontName = source && objectFontNames.has(source.id)
     ? objectFontNames.get(source.id) : undefined;
   const fontSize = source
-    ? objectFontSizes.get(source.id) ?? source.fontSize ?? 12
+    ? Math.max(0.1, source.top - source.bottom)
     : selectedFontSize() ?? 12;
   const textColor = source ? objectTextColors.get(source.id) : selectedTextColor();
   const docId = state.docId;
