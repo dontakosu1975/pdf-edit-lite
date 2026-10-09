@@ -1205,8 +1205,84 @@ function updateDirtyIndicator(): void {
 
 // ── Keyboard shortcuts ──────────────────────────────────────────────
 
+async function copySelectedText(): Promise<void> {
+  if (state.selectedObjectId === null) return;
+  const obj = state.pageObjects.find((candidate) => candidate.id === state.selectedObjectId);
+  if (!obj || obj.type !== 'text' || !obj.text) return;
+  window.api.copyText(obj.text);
+  setStatus('文字列をコピーしました');
+}
+
+async function pasteTextObject(): Promise<void> {
+  if (!state.docId) return;
+  const text = window.api.pasteText();
+  if (!text.trim()) {
+    setStatus('クリップボードに文字列がありません');
+    return;
+  }
+
+  const source = state.selectedObjectId === null ? null :
+    state.pageObjects.find((candidate) => candidate.id === state.selectedObjectId && candidate.type === 'text');
+  const x = source ? source.left + 12 : 72;
+  const y = source ? Math.max(0, source.bottom - 16) : 72;
+  const fontName = source && objectFontNames.has(source.id)
+    ? objectFontNames.get(source.id) : undefined;
+  const fontSize = source
+    ? objectFontSizes.get(source.id) ?? source.fontSize ?? 12
+    : selectedFontSize() ?? 12;
+  const textColor = source ? objectTextColors.get(source.id) : selectedTextColor();
+  const docId = state.docId;
+  const pageIndex = state.currentPage;
+  let pastedObjectId = -1;
+
+  const cmd: EditCommand = {
+    description: 'Paste text object',
+    async execute(): Promise<void> {
+      const result = await window.api.pdf.insertText({
+        docId, pageIndex, x, y, newText: text, fontSize, fontName, textColor,
+      });
+      pastedObjectId = result.objectId;
+      insertedTextObjectIds.add(pastedObjectId);
+      objectFontNames.set(pastedObjectId, fontName);
+      objectFontSizes.set(pastedObjectId, fontSize);
+      objectTextColors.set(pastedObjectId, textColor);
+      state.selectedObjectId = pastedObjectId;
+      setToolMode('move-text');
+      markDirty();
+      await renderCurrentPage();
+      setStatus('貼り付けました。文字を移動できます');
+    },
+    async undo(): Promise<void> {
+      if (pastedObjectId < 0) return;
+      await window.api.pdf.removeText({ docId, pageIndex, objectId: pastedObjectId });
+      insertedTextObjectIds.delete(pastedObjectId);
+      objectFontNames.delete(pastedObjectId);
+      objectFontSizes.delete(pastedObjectId);
+      objectTextColors.delete(pastedObjectId);
+      if (state.selectedObjectId === pastedObjectId) state.selectedObjectId = null;
+      markDirty();
+      await renderCurrentPage();
+    },
+  };
+  await undoStack.push(cmd);
+}
+
 function handleKeyboard(e: KeyboardEvent): void {
   const mod = e.ctrlKey || e.metaKey;
+
+  // Let an active in-place editor handle its own clipboard operations.
+  if (activeEditorCommit) return;
+
+  if (mod && e.key.toLowerCase() === 'c') {
+    if (state.selectedObjectId !== null) {
+      e.preventDefault();
+      void copySelectedText();
+    }
+  }
+  if (mod && e.key.toLowerCase() === 'v') {
+    e.preventDefault();
+    void pasteTextObject();
+  }
 
   // File operations
   if (mod && e.key === 'o') { e.preventDefault(); handleOpen(); }

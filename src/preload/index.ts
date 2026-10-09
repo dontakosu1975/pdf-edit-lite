@@ -5,7 +5,7 @@
  * NO direct Node or Electron APIs leak to the renderer.
  */
 
-import { contextBridge, ipcRenderer } from 'electron';
+import { clipboard, contextBridge, ipcRenderer } from 'electron';
 import {
   IPC_CHANNELS,
   isAllowedChannel,
@@ -51,6 +51,12 @@ const api = {
 
   listInstalledFonts: (): Promise<InstalledFontInfo[]> =>
     ipcRenderer.invoke(IPC_CHANNELS.FONT_LIST),
+
+  copyText: (text: string): void => {
+    clipboard.writeText(text);
+  },
+
+  pasteText: (): string => clipboard.readText(),
 
   quit: (): Promise<void> =>
     ipcRenderer.invoke(IPC_CHANNELS.APP_QUIT),
