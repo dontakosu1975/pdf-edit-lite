@@ -56,6 +56,8 @@ const btnToolInsertText = document.getElementById('btn-tool-insert-text') as HTM
 const btnToolMoveText = document.getElementById('btn-tool-move-text') as HTMLButtonElement;
 const btnToolReplaceImage = document.getElementById('btn-tool-replace-image') as HTMLButtonElement;
 const btnDeleteSelectedText = document.getElementById('btn-delete-selected-text') as HTMLButtonElement;
+const btnCopyText = document.getElementById('btn-copy-text') as HTMLButtonElement;
+const btnPasteText = document.getElementById('btn-paste-text') as HTMLButtonElement;
 const btnCommitEdit = document.getElementById('btn-commit-edit') as HTMLButtonElement;
 const fontSelect = document.getElementById('font-select') as HTMLSelectElement;
 const btnUndo = document.getElementById('btn-undo') as HTMLButtonElement;
@@ -197,6 +199,8 @@ function updateTextFormatAvailability(): void {
     state.pageObjects.some((obj) => obj.id === state.selectedObjectId && obj.type === 'text');
   const available = Boolean(state.docId) && (selectedText || state.toolMode === 'insert-text');
   btnDeleteSelectedText.disabled = !selectedText;
+  btnCopyText.disabled = !selectedText;
+  btnPasteText.disabled = !state.docId;
   for (const control of [fontSelect, fontSizeInput, textColorMode, textColorInput]) {
     control.disabled = !available;
   }
@@ -236,6 +240,8 @@ async function init(): Promise<void> {
   btnDeleteSelectedText.addEventListener('click', () => {
     if (state.selectedObjectId !== null) void deleteTextObject(state.selectedObjectId, false);
   });
+  btnCopyText.addEventListener('click', () => { void copySelectedText(); });
+  btnPasteText.addEventListener('click', () => { void pasteTextObject(); });
   btnCommitEdit.addEventListener('click', () => activeEditorCommit?.());
   fontSelect.addEventListener('change', () => { void applyStyleToSelectedText(); });
   fontSizeInput.addEventListener('change', () => { void applyStyleToSelectedText(); });
@@ -1350,6 +1356,7 @@ function enableDocumentControls(): void {
   btnToolInsertText.disabled = false;
   btnToolMoveText.disabled = false;
   btnToolReplaceImage.disabled = false;
+  btnPasteText.disabled = false;
   updateTextFormatAvailability();
 }
 
