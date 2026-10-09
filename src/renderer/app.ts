@@ -59,6 +59,8 @@ const btnCommitEdit = document.getElementById('btn-commit-edit') as HTMLButtonEl
 const fontSelect = document.getElementById('font-select') as HTMLSelectElement;
 const btnUndo = document.getElementById('btn-undo') as HTMLButtonElement;
 const btnRedo = document.getElementById('btn-redo') as HTMLButtonElement;
+const textContextMenu = document.getElementById('text-context-menu') as HTMLDivElement;
+const btnDeleteText = document.getElementById('btn-delete-text') as HTMLButtonElement;
 
 // Thumbnails panel
 const thumbnailsPanel = document.getElementById('thumbnails-panel') as HTMLElement;
@@ -152,6 +154,11 @@ class UndoStack {
 const undoStack = new UndoStack();
 let activeEditorCommit: (() => void) | null = null;
 let dragMove: { objectId: number; startX: number; startY: number } | null = null;
+// Object IDs are stable while a document is open. These maps also let Undo/Redo
+// restore the font choice that was in effect before an edit.
+const insertedTextObjectIds = new Set<number>();
+const objectFontNames = new Map<number, string | undefined>();
+let contextMenuObjectId: number | null = null;
 
 function selectedFontName(): string | undefined {
   return fontSelect.value === 'auto' ? undefined : fontSelect.value;
@@ -188,11 +195,13 @@ async function init(): Promise<void> {
   btnToolMoveText.addEventListener('click', () => setToolMode('move-text'));
   btnToolReplaceImage.addEventListener('click', () => setToolMode('replace-image'));
   btnCommitEdit.addEventListener('click', () => activeEditorCommit?.());
+  fontSelect.addEventListener('change', () => { void applyFontToSelectedText(); });
   btnUndo.addEventListener('click', () => undoStack.undo());
   btnRedo.addEventListener('click', () => undoStack.redo());
 
   // Canvas click for object selection
   overlayCanvas.addEventListener('click', handleCanvasClick);
+  overlayCanvas.addEventListener('contextmenu', handleCanvasContextMenu);
   overlayCanvas.addEventListener('dblclick', handleCanvasDblClick);
   overlayCanvas.addEventListener('mousedown', handleCanvasMouseDown);
   window.addEventListener('mousemove', handleCanvasMouseMove);
@@ -210,6 +219,11 @@ async function init(): Promise<void> {
 
   // Wire keyboard shortcuts
   document.addEventListener('keydown', handleKeyboard);
+  document.addEventListener('click', (e) => {
+    if (!textContextMenu.contains(e.target as Node)) hideTextContextMenu();
+  });
+  window.addEventListener('scroll', hideTextContextMenu, true);
+  btnDeleteText.addEventListener('click', () => { void deleteInsertedTextFromContextMenu(); });
 
   // Subscribe to events from main
   window.api.onDocumentError((error) => setStatus(`エラー: ${error}`));
@@ -266,6 +280,9 @@ async function handleOpen(): Promise<void> {
     state.modified = false;
     state.selectedObjectId = null;
     state.pageObjects = [];
+    insertedTextObjectIds.clear();
+    objectFontNames.clear();
+    hideTextContextMenu();
     undoStack.clear();
   } catch (err) {
     setStatus(`PDFを開けませんでした: ${(err as Error).message}`);
@@ -569,33 +586,152 @@ function handleZoomFit(): void {
 function handleCanvasClick(e: MouseEvent): void {
   if (!state.docId) return;
 
-  const rect = overlayCanvas.getBoundingClientRect();
-  const canvasX = e.clientX - rect.left;
-  const canvasY = e.clientY - rect.top;
-  const scale = state.zoomPercent / 100;
-
-  // Convert canvas coordinates to PDF coordinates
-  const pdfX = canvasX / scale;
-  const pdfY = (overlayCanvas.height - canvasY) / scale; // flip Y for PDF coords
+  hideTextContextMenu();
+  const point = canvasPointToPdf(e.clientX, e.clientY);
+  const { canvasX, canvasY, pdfX, pdfY } = point;
 
   if (state.toolMode === 'insert-text') {
     openNewTextEditor(pdfX, pdfY, canvasX, canvasY);
     return;
   }
 
-  // Hit-test against page objects (last = topmost)
-  let hit: PageObject | null = null;
+  const hit = hitTestObject(pdfX, pdfY);
+
+  state.selectedObjectId = hit ? hit.id : null;
+  if (hit?.type === 'text') syncFontPickerToObject(hit.id);
+  drawSelectionOverlay();
+  updatePropertiesPanel(hit);
+}
+
+function canvasPointToPdf(clientX: number, clientY: number): {
+  canvasX: number; canvasY: number; pdfX: number; pdfY: number;
+} {
+  const rect = overlayCanvas.getBoundingClientRect();
+  const canvasX = clientX - rect.left;
+  const canvasY = clientY - rect.top;
+  const scale = state.zoomPercent / 100;
+  return {
+    canvasX,
+    canvasY,
+    pdfX: canvasX / scale,
+    pdfY: (overlayCanvas.height - canvasY) / scale,
+  };
+}
+
+function hitTestObject(pdfX: number, pdfY: number): PageObject | null {
   for (let i = state.pageObjects.length - 1; i >= 0; i--) {
     const obj = state.pageObjects[i];
     if (pdfX >= obj.left && pdfX <= obj.right && pdfY >= obj.bottom && pdfY <= obj.top) {
-      hit = obj;
-      break;
+      return obj;
     }
   }
+  return null;
+}
 
-  state.selectedObjectId = hit ? hit.id : null;
+function syncFontPickerToObject(objectId: number): void {
+  const choice = objectFontNames.has(objectId) ? objectFontNames.get(objectId) : 'original';
+  const value = choice === undefined ? 'auto' : choice;
+  if ([...fontSelect.options].some((option) => option.value === value)) {
+    fontSelect.value = value;
+  }
+}
+
+function handleCanvasContextMenu(e: MouseEvent): void {
+  e.preventDefault();
+  if (!state.docId) return;
+  const point = canvasPointToPdf(e.clientX, e.clientY);
+  const hit = hitTestObject(point.pdfX, point.pdfY);
+  if (!hit || hit.type !== 'text' || !insertedTextObjectIds.has(hit.id)) {
+    hideTextContextMenu();
+    return;
+  }
+
+  state.selectedObjectId = hit.id;
+  contextMenuObjectId = hit.id;
+  syncFontPickerToObject(hit.id);
   drawSelectionOverlay();
   updatePropertiesPanel(hit);
+  textContextMenu.hidden = false;
+  textContextMenu.style.left = `${Math.min(e.clientX, window.innerWidth - 200)}px`;
+  textContextMenu.style.top = `${Math.min(e.clientY, window.innerHeight - 60)}px`;
+}
+
+function hideTextContextMenu(): void {
+  contextMenuObjectId = null;
+  textContextMenu.hidden = true;
+}
+
+async function deleteInsertedTextFromContextMenu(): Promise<void> {
+  const objectId = contextMenuObjectId;
+  hideTextContextMenu();
+  if (objectId === null || !state.docId || !insertedTextObjectIds.has(objectId)) return;
+  const obj = state.pageObjects.find((candidate) => candidate.id === objectId);
+  if (!obj || obj.type !== 'text') return;
+
+  const docId = state.docId;
+  const pageIndex = state.currentPage;
+  const text = obj.text || ' ';
+  const x = obj.left;
+  const y = obj.bottom;
+  const fontName = objectFontNames.get(objectId);
+  let currentObjectId = objectId;
+  const cmd: EditCommand = {
+    description: 'Delete inserted text object',
+    async execute(): Promise<void> {
+      await window.api.pdf.removeText({ docId, pageIndex, objectId: currentObjectId });
+      insertedTextObjectIds.delete(currentObjectId);
+      objectFontNames.delete(currentObjectId);
+      if (state.selectedObjectId === currentObjectId) state.selectedObjectId = null;
+      markDirty();
+      await renderCurrentPage();
+    },
+    async undo(): Promise<void> {
+      const result = await window.api.pdf.insertText({
+        docId, pageIndex, x, y, newText: text, fontSize: 12,
+        fontName: fontName === undefined ? undefined : fontName,
+      });
+      currentObjectId = result.objectId;
+      insertedTextObjectIds.add(currentObjectId);
+      objectFontNames.set(currentObjectId, fontName);
+      state.selectedObjectId = currentObjectId;
+      markDirty();
+      await renderCurrentPage();
+    },
+  };
+  await undoStack.push(cmd);
+}
+
+async function applyFontToSelectedText(): Promise<void> {
+  if (!state.docId || state.selectedObjectId === null) return;
+  const obj = state.pageObjects.find((candidate) => candidate.id === state.selectedObjectId);
+  if (!obj || obj.type !== 'text') return;
+
+  const objectId = obj.id;
+  const docId = state.docId;
+  const pageIndex = state.currentPage;
+  const newText = obj.text || ' ';
+  const previousFontName = objectFontNames.has(objectId) ? objectFontNames.get(objectId) : 'original';
+  const newFontName = selectedFontName();
+  if (previousFontName === newFontName) return;
+
+  const cmd: EditCommand = {
+    description: `Change font for text object ${objectId}`,
+    async execute(): Promise<void> {
+      await window.api.pdf.editText({ docId, pageIndex, objectId, newText, fontName: newFontName });
+      objectFontNames.set(objectId, newFontName);
+      markDirty();
+      await renderCurrentPage();
+    },
+    async undo(): Promise<void> {
+      await window.api.pdf.editText({ docId, pageIndex, objectId, newText, fontName: previousFontName });
+      if (previousFontName === 'original') objectFontNames.delete(objectId);
+      else objectFontNames.set(objectId, previousFontName);
+      syncFontPickerToObject(objectId);
+      markDirty();
+      await renderCurrentPage();
+    },
+  };
+  await undoStack.push(cmd);
 }
 
 function handleCanvasMouseDown(e: MouseEvent): void {
@@ -608,6 +744,7 @@ function handleCanvasMouseDown(e: MouseEvent): void {
     const obj = state.pageObjects[i];
     if (obj.type === 'text' && x >= obj.left && x <= obj.right && y >= obj.bottom && y <= obj.top) {
       state.selectedObjectId = obj.id;
+      syncFontPickerToObject(obj.id);
       drawSelectionOverlay();
       updatePropertiesPanel(obj);
       dragMove = { objectId: obj.id, startX: e.clientX, startY: e.clientY };
@@ -711,6 +848,8 @@ function openInPlaceTextEditor(obj: PageObject): void {
     const docId = state.docId;
     const pageIndex = state.currentPage;
     const objectId = obj.id;
+    const previousFontName = objectFontNames.has(objectId) ? objectFontNames.get(objectId) : 'original';
+    const newFontName = selectedFontName();
 
     const cmd: EditCommand = {
       description: `Edit text object ${objectId}`,
@@ -719,13 +858,20 @@ function openInPlaceTextEditor(obj: PageObject): void {
         // keeps the deletion reversible with Ctrl+Z.
         await window.api.pdf.editText({
           docId, pageIndex, objectId, newText: newText || ' ',
-          fontName: selectedFontName(),
+          fontName: newFontName,
         });
+        objectFontNames.set(objectId, newFontName);
         markDirty();
         await renderCurrentPage();
       },
       async undo(): Promise<void> {
-        await window.api.pdf.editText({ docId, pageIndex, objectId, newText: originalText });
+        await window.api.pdf.editText({
+          docId, pageIndex, objectId, newText: originalText || ' ',
+          fontName: previousFontName,
+        });
+        if (previousFontName === 'original') objectFontNames.delete(objectId);
+        else objectFontNames.set(objectId, previousFontName);
+        syncFontPickerToObject(objectId);
         markDirty();
         await renderCurrentPage();
       },
@@ -795,21 +941,27 @@ function openNewTextEditor(pdfX: number, pdfY: number, canvasX: number, canvasY:
 
     const docId = state.docId;
     const pageIndex = state.currentPage;
+  const insertedFontName = selectedFontName();
     let insertedObjectId = -1;
     const cmd: EditCommand = {
       description: 'Insert text object',
       async execute(): Promise<void> {
         const result = await window.api.pdf.insertText({
           docId, pageIndex, x: pdfX, y: pdfY, newText, fontSize: 12,
-          fontName: selectedFontName(),
+          fontName: insertedFontName,
         });
         insertedObjectId = result.objectId;
+        insertedTextObjectIds.add(insertedObjectId);
+        objectFontNames.set(insertedObjectId, insertedFontName);
         markDirty();
         await renderCurrentPage();
       },
       async undo(): Promise<void> {
         if (insertedObjectId < 0) return;
         await window.api.pdf.removeText({ docId, pageIndex, objectId: insertedObjectId });
+        insertedTextObjectIds.delete(insertedObjectId);
+        objectFontNames.delete(insertedObjectId);
+        if (state.selectedObjectId === insertedObjectId) state.selectedObjectId = null;
         markDirty();
         await renderCurrentPage();
       },

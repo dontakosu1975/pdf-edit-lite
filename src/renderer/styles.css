@@ -274,6 +274,31 @@ html, body {
   pointer-events: none;
 }
 
+/* ── Text object context menu ─────────────────────────────────── */
+.text-context-menu {
+  position: fixed;
+  z-index: 100;
+  min-width: 180px;
+  padding: 4px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+}
+.text-context-menu[hidden] { display: none; }
+.text-context-menu button {
+  width: 100%;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+  font-size: 12px;
+}
+.text-context-menu button:hover { background: var(--danger); color: #fff; }
+
 /* ── Properties panel ─────────────────────────────────────────── */
 .properties-content {
   padding: 8px;
