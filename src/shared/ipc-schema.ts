@@ -26,6 +26,7 @@ export const IPC_CHANNELS = {
   // App lifecycle
   APP_GET_VERSION: 'app:get-version',
   APP_QUIT: 'app:quit',
+  FONT_LIST: 'font:list',
 
   // Auto-update
   UPDATE_CHECK: 'update:check',
@@ -52,6 +53,11 @@ export const IPC_CHANNELS = {
 
 /** Union of all allowed channel names. */
 export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];
+
+export interface InstalledFontInfo {
+  fileName: string;
+  label: string;
+}
 
 // ── Payload types (main → renderer, renderer → main) ────────────────
 

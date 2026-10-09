@@ -136,6 +136,7 @@ interface PdfEditorApi {
   saveFileAs(data: Uint8Array): Promise<string | null>;
   getRecentFiles(): Promise<string[]>;
   getVersion(): Promise<string>;
+  listInstalledFonts(): Promise<{ fileName: string; label: string }[]>;
   quit(): Promise<void>;
   checkForUpdates(): Promise<void>;
   downloadUpdate(): Promise<void>;

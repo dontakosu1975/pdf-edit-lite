@@ -25,6 +25,7 @@ import {
   type PdfReplaceImagePayload,
   type PdfSavePayload,
   type PdfSaveResult,
+  type InstalledFontInfo,
 } from '../shared/ipc-schema';
 
 /**
@@ -47,6 +48,9 @@ const api = {
   // ── App lifecycle ───────────────────────────────────────────────
   getVersion: (): Promise<string> =>
     ipcRenderer.invoke(IPC_CHANNELS.APP_GET_VERSION),
+
+  listInstalledFonts: (): Promise<InstalledFontInfo[]> =>
+    ipcRenderer.invoke(IPC_CHANNELS.FONT_LIST),
 
   quit: (): Promise<void> =>
     ipcRenderer.invoke(IPC_CHANNELS.APP_QUIT),

@@ -194,7 +194,16 @@ function loadAddon(): PdfiumAddon {
  * original PDF font is often a subset and may contain Japanese glyphs but no
  * ASCII glyphs, which is what produces tofu boxes for company names/numbers.
  */
-function loadEditorFontData(): Buffer | undefined {
+function loadEditorFontData(fontName?: string): Buffer | undefined {
+  if (fontName && fontName !== 'original') {
+    const safeName = path.basename(fontName);
+    const windowsFont = path.join('C:\\Windows\\Fonts', safeName);
+    try {
+      return fs.readFileSync(windowsFont);
+    } catch {
+      // Fall back to the bundled font when a selected system font disappears.
+    }
+  }
   const candidates = [
     path.join(app.getAppPath(), 'assets', 'fonts', 'UmeGothic-Regular.ttf'),
     path.join(process.resourcesPath, 'assets', 'fonts', 'UmeGothic-Regular.ttf'),
@@ -223,9 +232,15 @@ export class PdfiumEngine {
    */
   private readonly pinnedBuffers = new Map<string, Buffer>();
   private readonly editorFontData = loadEditorFontData();
+  private readonly editorFontCache = new Map<string, Buffer | undefined>();
 
   private getEditorFontData(fontName?: string): Buffer | undefined {
-    return fontName === 'original' ? undefined : this.editorFontData;
+    if (fontName === 'original') return undefined;
+    const key = fontName ?? 'bundled';
+    if (!this.editorFontCache.has(key)) {
+      this.editorFontCache.set(key, fontName ? loadEditorFontData(fontName) : this.editorFontData);
+    }
+    return this.editorFontCache.get(key);
   }
 
   constructor() {
@@ -351,7 +366,8 @@ export class PdfiumEngine {
       // Keep the PDF's original font for Japanese-only edits. Use the bundled
       // fallback only when ASCII is present, because many source PDFs embed a
       // Japanese subset that cannot render Latin letters or numbers.
-      const needsFallbackFont = fontName !== 'original' && /[A-Za-z0-9]/.test(newText);
+      const needsFallbackFont = fontName !== 'original' &&
+        (fontName !== undefined || /[A-Za-z0-9]/.test(newText));
       this.addon.editTextObject(
         handle, pageIndex, objectId, newText, fontName, fontSize,
         needsFallbackFont ? this.getEditorFontData(fontName) : undefined,

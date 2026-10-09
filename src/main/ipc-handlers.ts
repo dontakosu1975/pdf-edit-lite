@@ -25,6 +25,7 @@ import {
   type PdfReplaceImagePayload,
   type PdfSavePayload,
   type PdfSaveResult,
+  type InstalledFontInfo,
 } from '../shared/ipc-schema';
 import {
   PDF_FILE_FILTERS,
@@ -175,6 +176,23 @@ const renderQueue = new RenderQueue();
  * Register all IPC handlers.  Called once from main/index.ts.
  */
 export function registerIpcHandlers(): void {
+  ipcMain.handle(
+    IPC_CHANNELS.FONT_LIST,
+    async (): Promise<InstalledFontInfo[]> => {
+      if (process.platform !== 'win32') return [];
+      const fontsDir = 'C:\\Windows\\Fonts';
+      try {
+        const entries = await fs.readdir(fontsDir, { withFileTypes: true });
+        return entries
+          .filter((entry) => entry.isFile() && /\.(ttf|otf|ttc)$/i.test(entry.name))
+          .map((entry) => ({ fileName: entry.name, label: entry.name }))
+          .sort((a, b) => a.label.localeCompare(b.label, 'ja'));
+      } catch {
+        return [];
+      }
+    },
+  );
+
   // ── File operations ─────────────────────────────────────────────
 
   ipcMain.handle(IPC_CHANNELS.FILE_OPEN, async (_event): Promise<FileOpenResult | null> => {

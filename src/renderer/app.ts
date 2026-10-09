@@ -161,6 +161,7 @@ function selectedFontName(): string | undefined {
 async function init(): Promise<void> {
   const version = await window.api.getVersion();
   versionEl.textContent = `v${version}`;
+  await loadInstalledFonts();
 
   // Wire toolbar buttons
   btnOpen.addEventListener('click', handleOpen);
@@ -225,6 +226,20 @@ async function init(): Promise<void> {
   });
 
   setStatus('準備完了');
+}
+
+async function loadInstalledFonts(): Promise<void> {
+  try {
+    const fonts = await window.api.listInstalledFonts();
+    const current = fontSelect.value;
+    for (const font of fonts) {
+      if ([...fontSelect.options].some((option) => option.value === font.fileName)) continue;
+      fontSelect.add(new Option(font.label, font.fileName));
+    }
+    fontSelect.value = current || 'auto';
+  } catch {
+    // Font selection remains usable with the built-in options.
+  }
 }
 
 // ── File handlers ───────────────────────────────────────────────────
