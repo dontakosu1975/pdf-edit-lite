@@ -36,6 +36,7 @@
   },
   "dependencies": {
     "electron-updater": "^6.3.0",
+    "fonteditor-core": "^2.6.3",
     "node-addon-api": "^8.0.0"
   },
   "build": {

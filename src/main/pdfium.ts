@@ -13,6 +13,7 @@ import { randomUUID } from 'node:crypto';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 import { app, nativeImage } from 'electron';
+import { createFont } from 'fonteditor-core';
 import type {
   PdfOpenResult,
   PdfRenderResult,
@@ -221,6 +222,78 @@ function loadEditorFontData(fontName?: string): Buffer | undefined {
   return undefined;
 }
 
+/**
+ * Extract the first face from a Windows TrueType Collection.  The Windows
+ * Japanese fonts used by the editor are TTC files, while fonteditor-core
+ * accepts a normal TTF.  The first face is the regular face for meiryo.ttc
+ * and msgothic.ttc, and the bold face for meiryob_3.ttc.
+ */
+function extractFirstTtcFace(data: Buffer): Buffer {
+  if (data.toString('ascii', 0, 4) !== 'ttcf') return data;
+
+  const sfntOffset = data.readUInt32BE(16);
+  const tableCount = data.readUInt16BE(sfntOffset + 4);
+  const records: Array<{
+    tag: Buffer;
+    checksum: number;
+    offset: number;
+    length: number;
+  }> = [];
+  let recordOffset = sfntOffset + 12;
+  for (let i = 0; i < tableCount; i += 1) {
+    records.push({
+      tag: Buffer.from(data.subarray(recordOffset, recordOffset + 4)),
+      checksum: data.readUInt32BE(recordOffset + 4),
+      offset: data.readUInt32BE(recordOffset + 8),
+      length: data.readUInt32BE(recordOffset + 12),
+    });
+    recordOffset += 16;
+  }
+
+  let outputLength = 12 + tableCount * 16;
+  const tables = records.map((record) => {
+    outputLength = (outputLength + 3) & ~3;
+    const table = {
+      ...record,
+      outputOffset: outputLength,
+      bytes: data.subarray(record.offset, record.offset + record.length),
+    };
+    outputLength += record.length;
+    return table;
+  });
+
+  const output = Buffer.alloc(outputLength);
+  data.copy(output, 0, sfntOffset, sfntOffset + 12 + tableCount * 16);
+  let outputRecordOffset = 12;
+  for (const table of tables) {
+    table.tag.copy(output, outputRecordOffset);
+    output.writeUInt32BE(table.checksum, outputRecordOffset + 4);
+    output.writeUInt32BE(table.outputOffset, outputRecordOffset + 8);
+    output.writeUInt32BE(table.length, outputRecordOffset + 12);
+    table.bytes.copy(output, table.outputOffset);
+    outputRecordOffset += 16;
+  }
+  return output;
+}
+
+/**
+ * Build a normal, cmap-bearing TTF containing only the glyphs used by text.
+ * fontkit's subset output is intentionally PDF-internal and has no cmap, so
+ * it cannot be passed to PDFium's FPDFText_LoadFont.  fonteditor-core writes
+ * a standalone TTF that PDFium and other viewers can reopen correctly.
+ */
+function subsetEditorFontData(fontData: Buffer, text: string): Buffer {
+  if (!text) return fontData;
+  const face = extractFirstTtcFace(fontData);
+  const codePoints = Array.from(text, (character) => character.codePointAt(0) ?? 0);
+  const font = createFont(face, {
+    type: 'ttf',
+    subset: codePoints,
+    hinting: false,
+  });
+  return font.write({ type: 'ttf', hinting: false, toBuffer: true });
+}
+
 // ── PdfiumEngine class ──────────────────────────────────────────────
 
 export class PdfiumEngine {
@@ -236,11 +309,21 @@ export class PdfiumEngine {
   private readonly editorFontData = loadEditorFontData();
   private readonly editorFontCache = new Map<string, Buffer | undefined>();
 
-  private getEditorFontData(fontName?: string): Buffer | undefined {
+  private getEditorFontData(fontName?: string, text?: string): Buffer | undefined {
     if (fontName === 'original') return undefined;
-    const key = fontName ?? 'bundled';
+    const key = `${fontName ?? 'bundled'}\u0000${text ?? ''}`;
     if (!this.editorFontCache.has(key)) {
-      this.editorFontCache.set(key, fontName ? loadEditorFontData(fontName) : this.editorFontData);
+      const fullFont = fontName ? loadEditorFontData(fontName) : this.editorFontData;
+      if (!fullFont || !text) {
+        this.editorFontCache.set(key, fullFont);
+      } else {
+        try {
+          this.editorFontCache.set(key, subsetEditorFontData(fullFont, text));
+        } catch (err) {
+          console.warn('[PdfiumEngine] Font subsetting failed; using full font', err);
+          this.editorFontCache.set(key, fullFont);
+        }
+      }
     }
     return this.editorFontCache.get(key);
   }
@@ -373,7 +456,7 @@ export class PdfiumEngine {
         (fontName !== undefined || /[A-Za-z0-9]/.test(newText));
       this.addon.editTextObject(
         handle, pageIndex, objectId, newText, fontName, fontSize,
-        needsFallbackFont ? this.getEditorFontData(fontName) : undefined,
+        needsFallbackFont ? this.getEditorFontData(fontName, newText) : undefined,
         textColor,
       );
     } catch (err) {
@@ -403,7 +486,7 @@ export class PdfiumEngine {
     // back to the bundled editor font for insertion.
     const fontData = fontName === 'original'
       ? this.editorFontData
-      : this.getEditorFontData(fontName);
+      : this.getEditorFontData(fontName, newText);
     if (!fontData) {
       throw new PdfiumError(PDFIUM_ERROR_CODES.EDIT_FAILED, 'Japanese-capable editor font is unavailable');
     }
