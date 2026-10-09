@@ -215,9 +215,14 @@ void EditTextObject(const Napi::CallbackInfo& info) {
     unsigned int originalR = 0, originalG = 0, originalB = 0, originalA = 255;
     FPDFPageObj_GetFillColor(obj, &originalR, &originalG, &originalB, &originalA);
 
-    FPDF_FONT font = FPDFText_LoadFont(
-      doc, fontData, fontDataSize, FPDF_FONT_TRUETYPE, /*cid=*/true
-    );
+    FPDF_FONT font = FindDocumentFont(handle, fontData, fontDataSize);
+    bool loadedNewFont = false;
+    if (!font) {
+      font = FPDFText_LoadFont(
+        doc, fontData, fontDataSize, FPDF_FONT_TRUETYPE, /*cid=*/true
+      );
+      loadedNewFont = font != nullptr;
+    }
     FPDF_PAGEOBJECT replacement = font
       ? FPDFPageObj_CreateTextObj(doc, font, fontSize)
       : nullptr;
@@ -251,8 +256,8 @@ void EditTextObject(const Napi::CallbackInfo& info) {
       }
     }
     if (!ok && replacement) FPDFPageObj_Destroy(replacement);
-    if (ok && font) KeepDocumentFont(handle, font);
-    else if (font) FPDFFont_Close(font);
+    if (ok && loadedNewFont) KeepDocumentFont(handle, font, fontData, fontDataSize);
+    else if (!ok && loadedNewFont) FPDFFont_Close(font);
   } else {
     // Fallback for callers that do not provide a replacement font.
     ok = FPDFText_SetText(
@@ -325,10 +330,17 @@ Napi::Value InsertTextObject(const Napi::CallbackInfo& info) {
     return env.Undefined();
   }
 
-  FPDF_FONT font = FPDFText_LoadFont(
-    doc, fontBuffer.Data(), static_cast<uint32_t>(fontBuffer.Length()),
-    FPDF_FONT_TRUETYPE, /*cid=*/true
-  );
+  const uint8_t* fontData = fontBuffer.Data();
+  const size_t fontDataSize = fontBuffer.Length();
+  FPDF_FONT font = FindDocumentFont(handle, fontData, fontDataSize);
+  bool loadedNewFont = false;
+  if (!font) {
+    font = FPDFText_LoadFont(
+      doc, fontData, static_cast<uint32_t>(fontDataSize),
+      FPDF_FONT_TRUETYPE, /*cid=*/true
+    );
+    loadedNewFont = font != nullptr;
+  }
   FPDF_PAGEOBJECT obj = font
     ? FPDFPageObj_CreateTextObj(doc, font, fontSize)
     : nullptr;
@@ -344,8 +356,8 @@ Napi::Value InsertTextObject(const Napi::CallbackInfo& info) {
   int objectId = FPDFPage_CountObjects(page);
   if (ok) ok = FPDFPage_InsertObject(page, obj);
   if (!ok && obj) FPDFPageObj_Destroy(obj);
-  if (ok && font) KeepDocumentFont(handle, font);
-  else if (font) FPDFFont_Close(font);
+  if (ok && loadedNewFont) KeepDocumentFont(handle, font, fontData, fontDataSize);
+  else if (!ok && loadedNewFont) FPDFFont_Close(font);
   if (!ok) {
     ReleasePage(handle, pageIndex, page, fromCache);
     Napi::Error::New(env, "insertTextObject: failed to create text object")

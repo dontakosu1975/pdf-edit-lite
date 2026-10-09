@@ -8,6 +8,7 @@
 #include <fpdfview.h>
 #include <map>
 #include <vector>
+#include <cstdint>
 
 // ── Global document registry ────────────────────────────────────────
 
@@ -39,11 +40,20 @@ struct CachedPage {
 /** handle → (pageIndex → CachedPage). */
 extern std::map<int, std::map<int, CachedPage>> g_pageCache;
 
-/** Fonts loaded for newly created/rebuilt text objects. They must remain
- * alive until the owning document is closed so FPDF_SaveAsCopy can embed them. */
-extern std::map<int, std::vector<FPDF_FONT>> g_documentFonts;
+/** A font loaded for a document, keyed by its source font bytes. */
+struct DocumentFontEntry {
+  FPDF_FONT font;
+  uint64_t  dataHash;
+  size_t    dataSize;
+};
 
-void KeepDocumentFont(int handle, FPDF_FONT font);
+/** Fonts loaded for newly created/rebuilt text objects. They must remain
+ * alive until the owning document is closed so FPDF_SaveAsCopy can embed them.
+ * Reusing the same FPDF_FONT prevents duplicate font streams in the output PDF. */
+extern std::map<int, std::vector<DocumentFontEntry>> g_documentFonts;
+
+void KeepDocumentFont(int handle, FPDF_FONT font, const uint8_t* data, size_t dataSize);
+FPDF_FONT FindDocumentFont(int handle, const uint8_t* data, size_t dataSize);
 void CloseDocumentFonts(int handle);
 
 // ── Utility functions ───────────────────────────────────────────────

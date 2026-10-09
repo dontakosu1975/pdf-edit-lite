@@ -15,19 +15,43 @@
 
 std::map<int, FPDF_DOCUMENT> g_documents;
 std::map<int, std::map<int, CachedPage>> g_pageCache;
-std::map<int, std::vector<FPDF_FONT>> g_documentFonts;
+std::map<int, std::vector<DocumentFontEntry>> g_documentFonts;
 int g_nextHandle = 1;
 bool g_initialized = false;
 
-void KeepDocumentFont(int handle, FPDF_FONT font) {
-  if (font) g_documentFonts[handle].push_back(font);
+static uint64_t HashFontData(const uint8_t* data, size_t dataSize) {
+  // FNV-1a is sufficient here as a document-local cache key; the size is
+  // stored alongside it to make accidental reuse even less likely.
+  uint64_t hash = 1469598103934665603ULL;
+  for (size_t i = 0; i < dataSize; ++i) {
+    hash ^= static_cast<uint64_t>(data[i]);
+    hash *= 1099511628211ULL;
+  }
+  return hash;
+}
+
+void KeepDocumentFont(int handle, FPDF_FONT font, const uint8_t* data, size_t dataSize) {
+  if (font && data && dataSize > 0) {
+    g_documentFonts[handle].push_back({font, HashFontData(data, dataSize), dataSize});
+  }
+}
+
+FPDF_FONT FindDocumentFont(int handle, const uint8_t* data, size_t dataSize) {
+  if (!data || dataSize == 0) return nullptr;
+  const uint64_t hash = HashFontData(data, dataSize);
+  auto it = g_documentFonts.find(handle);
+  if (it == g_documentFonts.end()) return nullptr;
+  for (const DocumentFontEntry& entry : it->second) {
+    if (entry.dataHash == hash && entry.dataSize == dataSize) return entry.font;
+  }
+  return nullptr;
 }
 
 void CloseDocumentFonts(int handle) {
   auto it = g_documentFonts.find(handle);
   if (it == g_documentFonts.end()) return;
-  for (FPDF_FONT font : it->second) {
-    if (font) FPDFFont_Close(font);
+  for (const DocumentFontEntry& entry : it->second) {
+    if (entry.font) FPDFFont_Close(entry.font);
   }
   g_documentFonts.erase(it);
 }
