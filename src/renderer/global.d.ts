@@ -62,6 +62,8 @@ interface PageObject {
   bottom: number;
   /** Text content (only present for type === 'text'). */
   text?: string;
+  /** Base PDF font size, used to calculate scale changes. */
+  fontSize?: number;
 }
 
 interface PdfEditTextPayload {
@@ -71,6 +73,7 @@ interface PdfEditTextPayload {
   newText: string;
   fontName?: string;
   fontSize?: number;
+  fontScale?: number;
   textColor?: string;
 }
 

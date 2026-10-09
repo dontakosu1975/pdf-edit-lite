@@ -98,6 +98,10 @@ Napi::Value ListPageObjects(const Napi::CallbackInfo& info) {
 
     // Extract text content for text objects.
     if (type == FPDF_PAGEOBJ_TEXT && textPage) {
+      float fontSize = 0.0f;
+      if (FPDFTextObj_GetFontSize(obj, &fontSize)) {
+        entry.Set("fontSize", Napi::Number::New(env, static_cast<double>(fontSize)));
+      }
       // First call: get required buffer length (in bytes, UTF-16LE + NUL).
       unsigned long len = FPDFTextObj_GetText(obj, textPage, nullptr, 0);
       if (len > 0) {
@@ -163,6 +167,14 @@ void EditTextObject(const Napi::CallbackInfo& info) {
   unsigned int requestedR = 0, requestedG = 0, requestedB = 0;
   if (hasTextColor && !ParseHexColor(info[7], &requestedR, &requestedG, &requestedB)) {
     Napi::TypeError::New(env, "editTextObject: textColor must be #RRGGBB")
+      .ThrowAsJavaScriptException();
+    return;
+  }
+  const bool hasTextScale = info.Length() >= 9 && info[8].IsNumber();
+  const float requestedTextScale = hasTextScale
+    ? info[8].As<Napi::Number>().FloatValue() : 1.0f;
+  if (hasTextScale && requestedTextScale <= 0.0f) {
+    Napi::RangeError::New(env, "editTextObject: fontScale must be > 0")
       .ThrowAsJavaScriptException();
     return;
   }
@@ -232,7 +244,16 @@ void EditTextObject(const Napi::CallbackInfo& info) {
         reinterpret_cast<FPDF_WIDESTRING>(newText.c_str())
       );
       if (ok) ok = FPDFPageObj_SetMatrix(replacement, &matrix);
-      if (ok && hasRequestedFontSize) ok = FPDFTextObj_SetFontSize(replacement, requestedFontSize);
+      if (ok && hasRequestedFontSize && !hasTextScale) {
+        ok = FPDFTextObj_SetFontSize(replacement, requestedFontSize);
+      }
+      if (ok && hasTextScale) {
+        matrix.a *= requestedTextScale;
+        matrix.b *= requestedTextScale;
+        matrix.c *= requestedTextScale;
+        matrix.d *= requestedTextScale;
+        ok = FPDFPageObj_SetMatrix(replacement, &matrix);
+      }
       if (ok) {
         ok = FPDFPageObj_SetFillColor(
           replacement,
@@ -264,7 +285,21 @@ void EditTextObject(const Napi::CallbackInfo& info) {
       obj,
       reinterpret_cast<FPDF_WIDESTRING>(newText.c_str())
     );
-    if (ok && hasRequestedFontSize) ok = FPDFTextObj_SetFontSize(obj, requestedFontSize);
+    if (ok && hasRequestedFontSize && !hasTextScale) {
+      ok = FPDFTextObj_SetFontSize(obj, requestedFontSize);
+    }
+    if (ok && hasTextScale) {
+      FS_MATRIX matrix{};
+      if (FPDFPageObj_GetMatrix(obj, &matrix)) {
+        matrix.a *= requestedTextScale;
+        matrix.b *= requestedTextScale;
+        matrix.c *= requestedTextScale;
+        matrix.d *= requestedTextScale;
+        ok = FPDFPageObj_SetMatrix(obj, &matrix);
+      } else {
+        ok = 0;
+      }
+    }
     if (ok && hasTextColor) ok = FPDFPageObj_SetFillColor(obj, requestedR, requestedG, requestedB, 255);
   }
 

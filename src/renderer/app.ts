@@ -181,6 +181,17 @@ function selectedTextColor(): string | undefined {
   return textColorMode.value === 'custom' ? textColorInput.value : undefined;
 }
 
+function textScaleForSizeChange(
+  object: PageObject,
+  previousSize: number | undefined,
+  nextSize: number | undefined,
+): number {
+  const baseSize = object.fontSize && object.fontSize > 0 ? object.fontSize : 12;
+  const currentSize = previousSize ?? baseSize;
+  const targetSize = nextSize ?? baseSize;
+  return targetSize / currentSize;
+}
+
 function updateTextFormatAvailability(): void {
   const selectedText = state.selectedObjectId !== null &&
     state.pageObjects.some((obj) => obj.id === state.selectedObjectId && obj.type === 'text');
@@ -774,6 +785,7 @@ async function applyStyleToSelectedText(): Promise<void> {
   const newFontName = selectedFontName();
   const newFontSize = selectedFontSize();
   const newTextColor = selectedTextColor();
+  const fontScale = textScaleForSizeChange(obj, previousFontSize, newFontSize);
   if (previousFontName === newFontName && previousFontSize === newFontSize && previousTextColor === newTextColor) return;
 
   const cmd: EditCommand = {
@@ -781,7 +793,7 @@ async function applyStyleToSelectedText(): Promise<void> {
     async execute(): Promise<void> {
       await window.api.pdf.editText({
         docId, pageIndex, objectId, newText, fontName: newFontName,
-        fontSize: newFontSize, textColor: newTextColor,
+        fontSize: undefined, fontScale, textColor: newTextColor,
       });
       if (newFontName === 'original') objectFontNames.delete(objectId);
       else objectFontNames.set(objectId, newFontName);
@@ -795,7 +807,8 @@ async function applyStyleToSelectedText(): Promise<void> {
     async undo(): Promise<void> {
       await window.api.pdf.editText({
         docId, pageIndex, objectId, newText, fontName: previousFontName,
-        fontSize: previousFontSize, textColor: previousTextColor,
+        fontSize: undefined, fontScale: fontScale === 0 ? undefined : 1 / fontScale,
+        textColor: previousTextColor,
       });
       if (previousFontName === 'original') objectFontNames.delete(objectId);
       else objectFontNames.set(objectId, previousFontName);
@@ -932,6 +945,7 @@ function openInPlaceTextEditor(obj: PageObject): void {
     const newFontName = selectedFontName();
     const newFontSize = selectedFontSize();
     const newTextColor = selectedTextColor();
+    const fontScale = textScaleForSizeChange(obj, previousFontSize, newFontSize);
 
     const cmd: EditCommand = {
       description: `Edit text object ${objectId}`,
@@ -941,7 +955,8 @@ function openInPlaceTextEditor(obj: PageObject): void {
         await window.api.pdf.editText({
           docId, pageIndex, objectId, newText: newText || ' ',
           fontName: newFontName,
-          fontSize: newFontSize,
+          fontSize: undefined,
+          fontScale,
           textColor: newTextColor,
         });
         if (newFontName === 'original') objectFontNames.delete(objectId);
@@ -957,7 +972,8 @@ function openInPlaceTextEditor(obj: PageObject): void {
         await window.api.pdf.editText({
           docId, pageIndex, objectId, newText: originalText || ' ',
           fontName: previousFontName,
-          fontSize: previousFontSize,
+          fontSize: undefined,
+          fontScale: fontScale === 0 ? undefined : 1 / fontScale,
           textColor: previousTextColor,
         });
         if (previousFontName === 'original') objectFontNames.delete(objectId);

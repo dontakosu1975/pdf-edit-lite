@@ -71,7 +71,7 @@ interface PdfiumAddon {
   };
   /**
    * List text and image objects on a page.
-   * Returns array of { id, type, left, top, right, bottom }.
+   * Returns array of { id, type, left, top, right, bottom, fontSize }.
    */
   listPageObjects(handle: number, pageIndex: number): Array<{
     id: number;
@@ -81,6 +81,7 @@ interface PdfiumAddon {
     right: number;
     bottom: number;
     text?: string;
+    fontSize?: number;
   }>;
   editTextObject(
     handle: number,
@@ -91,6 +92,7 @@ interface PdfiumAddon {
     fontSize?: number,
     fontData?: Buffer,
     textColor?: string,
+    fontScale?: number,
   ): void;
   insertTextObject(
     handle: number,
@@ -423,6 +425,7 @@ export class PdfiumEngine {
       right: obj.right,
       bottom: obj.bottom,
       ...(obj.text !== undefined ? { text: obj.text } : {}),
+      ...(obj.fontSize !== undefined ? { fontSize: obj.fontSize } : {}),
     }));
   }
 
@@ -437,6 +440,7 @@ export class PdfiumEngine {
     fontName?: string,
     fontSize?: number,
     textColor?: string,
+    fontScale?: number,
   ): void {
     const handle = this.requireHandle(docId);
     this.validatePageIndex(handle, pageIndex);
@@ -458,6 +462,7 @@ export class PdfiumEngine {
         handle, pageIndex, objectId, newText, fontName, fontSize,
         needsFallbackFont ? this.getEditorFontData(fontName, newText) : undefined,
         textColor,
+        fontScale,
       );
     } catch (err) {
       throw new PdfiumError(

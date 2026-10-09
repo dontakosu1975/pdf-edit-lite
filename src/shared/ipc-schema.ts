@@ -143,6 +143,8 @@ export interface PageObject {
   bottom: number;
   /** Text content (only present for type === 'text'). */
   text?: string;
+  /** Base PDF font size, used to calculate scale changes. */
+  fontSize?: number;
 }
 
 /** Payload for editing text content of an object. */
@@ -153,6 +155,8 @@ export interface PdfEditTextPayload {
   newText: string;
   fontName?: string;
   fontSize?: number;
+  /** Transform scale relative to the object's current effective size. */
+  fontScale?: number;
   /** CSS-style hex color (#RRGGBB). Omit to preserve the original color. */
   textColor?: string;
 }

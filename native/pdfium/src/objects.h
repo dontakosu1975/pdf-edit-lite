@@ -13,7 +13,7 @@
 Napi::Value ListPageObjects(const Napi::CallbackInfo& info);
 
 /**
- * editTextObject(handle, pageIndex, objectId, newText, fontName?, fontSize?, fontData?)
+ * editTextObject(handle, pageIndex, objectId, newText, fontName?, fontSize?, fontData?, textColor?, fontScale?)
  * → void
  */
 void EditTextObject(const Napi::CallbackInfo& info);
