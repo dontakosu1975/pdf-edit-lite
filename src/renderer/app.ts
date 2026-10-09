@@ -56,6 +56,7 @@ const btnToolInsertText = document.getElementById('btn-tool-insert-text') as HTM
 const btnToolMoveText = document.getElementById('btn-tool-move-text') as HTMLButtonElement;
 const btnToolReplaceImage = document.getElementById('btn-tool-replace-image') as HTMLButtonElement;
 const btnCommitEdit = document.getElementById('btn-commit-edit') as HTMLButtonElement;
+const fontSelect = document.getElementById('font-select') as HTMLSelectElement;
 const btnUndo = document.getElementById('btn-undo') as HTMLButtonElement;
 const btnRedo = document.getElementById('btn-redo') as HTMLButtonElement;
 
@@ -151,6 +152,10 @@ class UndoStack {
 const undoStack = new UndoStack();
 let activeEditorCommit: (() => void) | null = null;
 let dragMove: { objectId: number; startX: number; startY: number } | null = null;
+
+function selectedFontName(): string | undefined {
+  return fontSelect.value === 'auto' ? undefined : fontSelect.value;
+}
 
 // ── Initialization ──────────────────────────────────────────────────
 async function init(): Promise<void> {
@@ -699,6 +704,7 @@ function openInPlaceTextEditor(obj: PageObject): void {
         // keeps the deletion reversible with Ctrl+Z.
         await window.api.pdf.editText({
           docId, pageIndex, objectId, newText: newText || ' ',
+          fontName: selectedFontName(),
         });
         markDirty();
         await renderCurrentPage();
@@ -780,6 +786,7 @@ function openNewTextEditor(pdfX: number, pdfY: number, canvasX: number, canvasY:
       async execute(): Promise<void> {
         const result = await window.api.pdf.insertText({
           docId, pageIndex, x: pdfX, y: pdfY, newText, fontSize: 12,
+          fontName: selectedFontName(),
         });
         insertedObjectId = result.objectId;
         markDirty();

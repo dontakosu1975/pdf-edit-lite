@@ -80,6 +80,7 @@ interface PdfInsertTextPayload {
   y: number;
   newText: string;
   fontSize?: number;
+  fontName?: string;
 }
 
 interface PdfRemoveTextPayload {

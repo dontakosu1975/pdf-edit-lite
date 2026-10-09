@@ -224,6 +224,10 @@ export class PdfiumEngine {
   private readonly pinnedBuffers = new Map<string, Buffer>();
   private readonly editorFontData = loadEditorFontData();
 
+  private getEditorFontData(fontName?: string): Buffer | undefined {
+    return fontName === 'original' ? undefined : this.editorFontData;
+  }
+
   constructor() {
     this.addon = loadAddon();
   }
@@ -347,10 +351,10 @@ export class PdfiumEngine {
       // Keep the PDF's original font for Japanese-only edits. Use the bundled
       // fallback only when ASCII is present, because many source PDFs embed a
       // Japanese subset that cannot render Latin letters or numbers.
-      const needsFallbackFont = /[A-Za-z0-9]/.test(newText);
+      const needsFallbackFont = fontName !== 'original' && /[A-Za-z0-9]/.test(newText);
       this.addon.editTextObject(
         handle, pageIndex, objectId, newText, fontName, fontSize,
-        needsFallbackFont ? this.editorFontData : undefined,
+        needsFallbackFont ? this.getEditorFontData(fontName) : undefined,
       );
     } catch (err) {
       throw new PdfiumError(
@@ -368,17 +372,23 @@ export class PdfiumEngine {
     y: number,
     newText: string,
     fontSize?: number,
+    fontName?: string,
   ): number {
     const handle = this.requireHandle(docId);
     if (!newText.trim()) {
       throw new PdfiumError(PDFIUM_ERROR_CODES.INVALID_INPUT, 'newText must not be empty');
     }
-    if (!this.editorFontData) {
+    // A new object has no original font to inherit, so "original" falls
+    // back to the bundled editor font for insertion.
+    const fontData = fontName === 'original'
+      ? this.editorFontData
+      : this.getEditorFontData(fontName);
+    if (!fontData) {
       throw new PdfiumError(PDFIUM_ERROR_CODES.EDIT_FAILED, 'Japanese-capable editor font is unavailable');
     }
     try {
       return this.addon.insertTextObject(
-        handle, pageIndex, x, y, newText, this.editorFontData, fontSize,
+        handle, pageIndex, x, y, newText, fontData, fontSize,
       );
     } catch (err) {
       throw new PdfiumError(

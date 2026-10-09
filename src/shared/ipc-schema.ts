@@ -157,6 +157,7 @@ export interface PdfInsertTextPayload {
   y: number;
   newText: string;
   fontSize?: number;
+  fontName?: string;
 }
 
 /** Payload for removing an inserted text object. */

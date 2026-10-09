@@ -336,6 +336,7 @@ export function registerIpcHandlers(): void {
         payload.y,
         payload.newText,
         payload.fontSize,
+        payload.fontName,
       );
       bitmapCache.invalidatePage(payload.docId, payload.pageIndex);
       return { objectId };
