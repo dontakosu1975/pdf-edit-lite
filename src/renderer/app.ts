@@ -693,6 +693,7 @@ function hitTestObject(pdfX: number, pdfY: number): PageObject | null {
 
 function syncFontPickerToObject(objectId: number): void {
   const object = state.pageObjects.find((candidate) => candidate.id === objectId && candidate.type === 'text');
+  const objectFontSize = objectFontSizes.get(objectId) ?? object?.fontSize;
   // Existing PDF fonts can be subsetted or malformed for replacement text.
   // Use the installed Meiryo bold as the safe editing default; the original
   // PDF font remains available as an explicit choice in the toolbar.
@@ -701,9 +702,8 @@ function syncFontPickerToObject(objectId: number): void {
   if ([...fontSelect.options].some((option) => option.value === value)) {
     fontSelect.value = value;
   }
-  fontSizeInput.value = objectFontSizes.has(objectId) && objectFontSizes.get(objectId) !== undefined
-    ? String(objectFontSizes.get(objectId)) : '';
-  fontSizeInput.placeholder = objectFontSizes.has(objectId) ? 'pt' : '元';
+  fontSizeInput.value = objectFontSize !== undefined ? String(objectFontSize) : '';
+  fontSizeInput.placeholder = objectFontSize !== undefined ? 'pt' : '元';
   const textColor = objectTextColors.get(objectId);
   if (textColor) {
     textColorMode.value = 'custom';
@@ -713,9 +713,7 @@ function syncFontPickerToObject(objectId: number): void {
   }
   rememberTextStyle({
     fontName: choice,
-    fontSize: object
-      ? Math.max(0.1, object.top - object.bottom)
-      : objectFontSizes.get(objectId),
+    fontSize: objectFontSize,
     textColor,
   });
 }
@@ -1091,7 +1089,7 @@ function openNewTextEditor(pdfX: number, pdfY: number, canvasX: number, canvasY:
       state.pageObjects.find((candidate) => candidate.id === state.selectedObjectId && candidate.type === 'text');
     const insertedFontName = rememberedStyle ? rememberedStyle.fontName : selectedFontName();
     const insertedFontSize = sourceObject
-      ? Math.max(0.1, sourceObject.top - sourceObject.bottom)
+      ? objectFontSizes.get(sourceObject.id) ?? sourceObject.fontSize ?? 12
       : rememberedStyle?.fontSize ?? selectedFontSize() ?? 12;
     const insertedTextColor = rememberedStyle ? rememberedStyle.textColor : selectedTextColor();
     let insertedObjectId = -1;
@@ -1268,7 +1266,7 @@ async function pasteTextObject(): Promise<void> {
   const fontName = source && objectFontNames.has(source.id)
     ? objectFontNames.get(source.id) : undefined;
   const fontSize = source
-    ? Math.max(0.1, source.top - source.bottom)
+    ? objectFontSizes.get(source.id) ?? source.fontSize ?? 12
     : selectedFontSize() ?? 12;
   const textColor = source ? objectTextColors.get(source.id) : selectedTextColor();
   const docId = state.docId;
