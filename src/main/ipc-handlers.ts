@@ -5,7 +5,7 @@
  * and validates the channel against the shared allow-list.
  */
 
-import { ipcMain, dialog, app, BrowserWindow } from 'electron';
+import { clipboard, ipcMain, dialog, app, BrowserWindow } from 'electron';
 import * as fs from 'node:fs/promises';
 import {
   IPC_CHANNELS,
@@ -249,6 +249,14 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle(IPC_CHANNELS.APP_GET_VERSION, async (): Promise<string> => {
     return app.getVersion();
+  });
+
+  ipcMain.handle(IPC_CHANNELS.CLIPBOARD_WRITE_TEXT, async (_event, text: string): Promise<void> => {
+    clipboard.writeText(text);
+  });
+
+  ipcMain.handle(IPC_CHANNELS.CLIPBOARD_READ_TEXT, async (): Promise<string> => {
+    return clipboard.readText();
   });
 
   ipcMain.handle(IPC_CHANNELS.APP_QUIT, async (): Promise<void> => {

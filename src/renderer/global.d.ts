@@ -142,8 +142,8 @@ interface PdfEditorApi {
   getRecentFiles(): Promise<string[]>;
   getVersion(): Promise<string>;
   listInstalledFonts(): Promise<{ fileName: string; label: string }[]>;
-  copyText(text: string): void;
-  pasteText(): string;
+  copyText(text: string): Promise<void>;
+  pasteText(): Promise<string>;
   quit(): Promise<void>;
   checkForUpdates(): Promise<void>;
   downloadUpdate(): Promise<void>;

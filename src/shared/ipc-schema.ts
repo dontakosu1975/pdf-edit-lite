@@ -27,6 +27,8 @@ export const IPC_CHANNELS = {
   APP_GET_VERSION: 'app:get-version',
   APP_QUIT: 'app:quit',
   FONT_LIST: 'font:list',
+  CLIPBOARD_WRITE_TEXT: 'clipboard:write-text',
+  CLIPBOARD_READ_TEXT: 'clipboard:read-text',
 
   // Auto-update
   UPDATE_CHECK: 'update:check',

@@ -1215,13 +1215,13 @@ async function copySelectedText(): Promise<void> {
   if (state.selectedObjectId === null) return;
   const obj = state.pageObjects.find((candidate) => candidate.id === state.selectedObjectId);
   if (!obj || obj.type !== 'text' || !obj.text) return;
-  window.api.copyText(obj.text);
+  await window.api.copyText(obj.text);
   setStatus('文字列をコピーしました');
 }
 
 async function pasteTextObject(): Promise<void> {
   if (!state.docId) return;
-  const text = window.api.pasteText();
+  const text = await window.api.pasteText();
   if (!text.trim()) {
     setStatus('クリップボードに文字列がありません');
     return;
