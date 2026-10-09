@@ -196,8 +196,8 @@ function loadAddon(): PdfiumAddon {
  */
 function loadEditorFontData(): Buffer | undefined {
   const candidates = [
-    path.join(app.getAppPath(), 'assets', 'fonts', 'NotoSansJP-Regular.otf'),
-    path.join(process.resourcesPath, 'assets', 'fonts', 'NotoSansJP-Regular.otf'),
+    path.join(app.getAppPath(), 'assets', 'fonts', 'UmeGothic-Regular.ttf'),
+    path.join(process.resourcesPath, 'assets', 'fonts', 'UmeGothic-Regular.ttf'),
   ];
   for (const candidate of candidates) {
     try {
@@ -344,8 +344,13 @@ export class PdfiumEngine {
     }
 
     try {
+      // Keep the PDF's original font for Japanese-only edits. Use the bundled
+      // fallback only when ASCII is present, because many source PDFs embed a
+      // Japanese subset that cannot render Latin letters or numbers.
+      const needsFallbackFont = /[A-Za-z0-9]/.test(newText);
       this.addon.editTextObject(
-        handle, pageIndex, objectId, newText, fontName, fontSize, this.editorFontData,
+        handle, pageIndex, objectId, newText, fontName, fontSize,
+        needsFallbackFont ? this.editorFontData : undefined,
       );
     } catch (err) {
       throw new PdfiumError(
