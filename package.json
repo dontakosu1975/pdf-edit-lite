@@ -1,0 +1,14 @@
+{
+  "name": "pdf-edit-lite",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Browser-based lightweight PDF text overlay editor",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^7.1.7"
+  }
+}

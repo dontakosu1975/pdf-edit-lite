@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PDF Edit Lite</title>
+  </head>
+  <body>
+    <div id="app">
+      <header class="topbar">
+        <div>
+          <span class="eyebrow">PDF EDIT LITE</span>
+          <h1>PDFの文字を、必要な分だけ編集</h1>
+        </div>
+        <div class="top-actions">
+          <label class="button secondary">PDFを開く<input id="pdf-input" type="file" accept="application/pdf" hidden /></label>
+          <button id="export" class="button primary" disabled>編集済みPDFを書き出す</button>
+        </div>
+      </header>
+
+      <main class="workspace">
+        <aside class="sidebar">
+          <section>
+            <h2>編集ツール</h2>
+            <button id="add-text" class="tool-button" disabled><span>＋</span> 文字を追加</button>
+            <button id="delete-text" class="tool-button" disabled><span>⌫</span> 選択中を削除</button>
+          </section>
+          <section>
+            <h2>クイック項目</h2>
+            <p class="help">表紙に限らず、よく使う項目を配置できます。</p>
+            <div class="quick-fields">
+              <input data-quick="営業名" placeholder="営業名" />
+              <input data-quick="社名" placeholder="社名" />
+              <input data-quick="原稿No" placeholder="原稿No" />
+            </div>
+            <button id="add-quick" class="tool-button" disabled>3項目をページに配置</button>
+          </section>
+          <section>
+            <h2>日本語フォント</h2>
+            <p class="help">日本語をPDFに書き出す場合はTTF/OTFを読み込んでください。</p>
+            <label class="font-picker">フォントを選択<input id="font-input" type="file" accept=".ttf,.otf" /></label>
+            <div id="font-status" class="status">未選択（英数字のみ利用可）</div>
+          </section>
+          <section class="tips">
+            <h2>使い方</h2>
+            <ol>
+              <li>PDFを開く</li>
+              <li>文字を追加して内容を入力</li>
+              <li>ドラッグで位置を調整</li>
+              <li>PDFを書き出す</li>
+            </ol>
+          </section>
+        </aside>
+
+        <section class="canvas-area">
+          <div class="canvas-toolbar">
+            <button id="prev-page" disabled>‹</button>
+            <span id="page-label">PDFを開いてください</span>
+            <button id="next-page" disabled>›</button>
+            <span class="toolbar-spacer"></span>
+            <button id="zoom-out" disabled>−</button>
+            <span id="zoom-label">100%</span>
+            <button id="zoom-in" disabled>＋</button>
+          </div>
+          <div id="empty-state" class="empty-state">
+            <div class="empty-icon">▧</div>
+            <h2>編集するPDFをここから開く</h2>
+            <p>ファイルはブラウザ内で処理され、サーバーへアップロードされません。</p>
+          </div>
+          <div id="page-wrap" class="page-wrap" hidden>
+            <canvas id="pdf-canvas"></canvas>
+            <div id="overlay" class="overlay"></div>
+          </div>
+        </section>
+
+        <aside class="properties" id="properties">
+          <h2>テキスト設定</h2>
+          <p class="muted">文字ボックスを選択すると設定できます。</p>
+          <div id="property-form" hidden>
+            <label>内容<textarea id="text-value" rows="4"></textarea></label>
+            <label>サイズ<input id="text-size" type="number" min="6" max="120" step="1" /></label>
+            <label>色<input id="text-color" type="color" /></label>
+            <button id="apply-properties" class="button primary full">反映</button>
+          </div>
+        </aside>
+      </main>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs" type="module"></script>
+    <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
