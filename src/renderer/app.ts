@@ -1271,9 +1271,12 @@ async function pasteTextObject(): Promise<void> {
   const y = source ? Math.max(0, source.bottom - 16) : 72;
   const fontName = source && objectFontNames.has(source.id)
     ? objectFontNames.get(source.id) : undefined;
-  const fontSize = source
+  const inheritedPasteSize = source
     ? visualFontSizeForObject(source)
-    : lastTextStyle?.visualFontSize ?? selectedFontSize() ?? 12;
+    : lastTextStyle?.visualFontSize;
+  const fontSize = inheritedPasteSize !== undefined && inheritedPasteSize > 2
+    ? inheritedPasteSize
+    : 12;
   const textColor = source ? objectTextColors.get(source.id) : selectedTextColor();
   const docId = state.docId;
   const pageIndex = state.currentPage;
@@ -1327,6 +1330,15 @@ function handleKeyboard(e: KeyboardEvent): void {
   if (mod && e.key.toLowerCase() === 'v') {
     e.preventDefault();
     void pasteTextObject();
+  }
+
+  if (!mod && (e.key === 'Delete' || e.key === 'Backspace') && state.selectedObjectId !== null) {
+    const selected = state.pageObjects.find((obj) => obj.id === state.selectedObjectId);
+    if (selected?.type === 'text') {
+      e.preventDefault();
+      void deleteTextObject(selected.id, false);
+      return;
+    }
   }
 
   // File operations
