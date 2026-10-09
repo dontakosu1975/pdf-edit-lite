@@ -172,6 +172,7 @@ let contextMenuObjectId: number | null = null;
 interface TextStyle {
   fontName: string | undefined;
   fontSize: number | undefined;
+  visualFontSize?: number;
   textColor: string | undefined;
 }
 let lastTextStyle: TextStyle | null = null;
@@ -202,6 +203,10 @@ function textScaleForSizeChange(
   const currentSize = previousSize ?? baseSize;
   const targetSize = nextSize ?? baseSize;
   return targetSize / currentSize;
+}
+
+function visualFontSizeForObject(object: PageObject): number {
+  return Math.max(0.1, object.top - object.bottom);
 }
 
 function updateTextFormatAvailability(): void {
@@ -714,6 +719,7 @@ function syncFontPickerToObject(objectId: number): void {
   rememberTextStyle({
     fontName: choice,
     fontSize: objectFontSize,
+    visualFontSize: object ? visualFontSizeForObject(object) : undefined,
     textColor,
   });
 }
@@ -1089,8 +1095,8 @@ function openNewTextEditor(pdfX: number, pdfY: number, canvasX: number, canvasY:
       state.pageObjects.find((candidate) => candidate.id === state.selectedObjectId && candidate.type === 'text');
     const insertedFontName = rememberedStyle ? rememberedStyle.fontName : selectedFontName();
     const insertedFontSize = sourceObject
-      ? objectFontSizes.get(sourceObject.id) ?? sourceObject.fontSize ?? 12
-      : rememberedStyle?.fontSize ?? selectedFontSize() ?? 12;
+      ? visualFontSizeForObject(sourceObject)
+      : rememberedStyle?.visualFontSize ?? rememberedStyle?.fontSize ?? selectedFontSize() ?? 12;
     const insertedTextColor = rememberedStyle ? rememberedStyle.textColor : selectedTextColor();
     let insertedObjectId = -1;
     const cmd: EditCommand = {
@@ -1266,8 +1272,8 @@ async function pasteTextObject(): Promise<void> {
   const fontName = source && objectFontNames.has(source.id)
     ? objectFontNames.get(source.id) : undefined;
   const fontSize = source
-    ? objectFontSizes.get(source.id) ?? source.fontSize ?? 12
-    : selectedFontSize() ?? 12;
+    ? visualFontSizeForObject(source)
+    : lastTextStyle?.visualFontSize ?? selectedFontSize() ?? 12;
   const textColor = source ? objectTextColors.get(source.id) : selectedTextColor();
   const docId = state.docId;
   const pageIndex = state.currentPage;
