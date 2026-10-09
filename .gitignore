@@ -2,6 +2,7 @@ node_modules/
 dist/
 release/
 release2/
+archive/
 *.js.map
 src/shared/*.js
 src/shared/*.d.ts

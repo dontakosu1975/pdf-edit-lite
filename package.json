@@ -42,7 +42,7 @@
     "appId": "com.afrobat.app",
     "productName": "アフロバット",
     "directories": {
-      "output": "release"
+      "output": "release2"
     },
     "files": [
       "dist/**/*",

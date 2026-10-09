@@ -133,7 +133,7 @@ npm run dist:mac     # macOS DMG
 npm run dist:linux   # Linux AppImage
 ```
 
-Installers are written to the `release/` directory.
+Installers are written to the `release2/` directory. The previous `release/` build is archived locally under `archive/release1/`.
 
 #### Windows MSI (Enterprise)
 
