@@ -651,7 +651,10 @@ function hitTestObject(pdfX: number, pdfY: number): PageObject | null {
 }
 
 function syncFontPickerToObject(objectId: number): void {
-  const choice = objectFontNames.has(objectId) ? objectFontNames.get(objectId) : 'original';
+  // Existing PDF fonts can be subsetted or malformed for replacement text.
+  // Use the installed Meiryo bold as the safe editing default; the original
+  // PDF font remains available as an explicit choice in the toolbar.
+  const choice = objectFontNames.has(objectId) ? objectFontNames.get(objectId) : 'meiryob_3.ttc';
   const value = choice === undefined ? 'auto' : choice;
   if ([...fontSelect.options].some((option) => option.value === value)) {
     fontSelect.value = value;
