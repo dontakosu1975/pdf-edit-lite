@@ -71,6 +71,7 @@ interface PdfEditTextPayload {
   newText: string;
   fontName?: string;
   fontSize?: number;
+  textColor?: string;
 }
 
 interface PdfInsertTextPayload {
@@ -81,6 +82,7 @@ interface PdfInsertTextPayload {
   newText: string;
   fontSize?: number;
   fontName?: string;
+  textColor?: string;
 }
 
 interface PdfRemoveTextPayload {

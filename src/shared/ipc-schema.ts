@@ -153,6 +153,8 @@ export interface PdfEditTextPayload {
   newText: string;
   fontName?: string;
   fontSize?: number;
+  /** CSS-style hex color (#RRGGBB). Omit to preserve the original color. */
+  textColor?: string;
 }
 
 /** Payload for inserting a new text object. Coordinates use PDF points. */
@@ -164,6 +166,8 @@ export interface PdfInsertTextPayload {
   newText: string;
   fontSize?: number;
   fontName?: string;
+  /** CSS-style hex color (#RRGGBB). Omit to use black. */
+  textColor?: string;
 }
 
 /** Payload for removing an inserted text object. */

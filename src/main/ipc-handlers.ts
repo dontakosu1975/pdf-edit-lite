@@ -338,6 +338,7 @@ export function registerIpcHandlers(): void {
         payload.newText,
         payload.fontName,
         payload.fontSize,
+        payload.textColor,
       );
       bitmapCache.invalidatePage(payload.docId, payload.pageIndex);
       return { ok: true };
@@ -355,6 +356,7 @@ export function registerIpcHandlers(): void {
         payload.newText,
         payload.fontSize,
         payload.fontName,
+        payload.textColor,
       );
       bitmapCache.invalidatePage(payload.docId, payload.pageIndex);
       return { objectId };

@@ -13,6 +13,24 @@
 #include <string>
 #include <vector>
 #include <algorithm>
+#include <cstdlib>
+
+// Accept the same format produced by <input type="color">: #RRGGBB.
+static bool ParseHexColor(const Napi::Value& value,
+                          unsigned int* r,
+                          unsigned int* g,
+                          unsigned int* b) {
+  if (!value.IsString()) return false;
+  std::string color = value.As<Napi::String>().Utf8Value();
+  if (color.size() != 7 || color[0] != '#') return false;
+  char* end = nullptr;
+  unsigned long rgb = std::strtoul(color.c_str() + 1, &end, 16);
+  if (end != color.c_str() + 7 || rgb > 0xFFFFFFUL) return false;
+  *r = static_cast<unsigned int>((rgb >> 16) & 0xFF);
+  *g = static_cast<unsigned int>((rgb >> 8) & 0xFF);
+  *b = static_cast<unsigned int>(rgb & 0xFF);
+  return true;
+}
 
 // ── Object type name mapping ────────────────────────────────────────
 
@@ -138,6 +156,16 @@ void EditTextObject(const Napi::CallbackInfo& info) {
     fontData = buffer.Data();
     fontDataSize = static_cast<uint32_t>(buffer.Length());
   }
+  float requestedFontSize = 0.0f;
+  const bool hasRequestedFontSize = info.Length() >= 6 && info[5].IsNumber();
+  if (hasRequestedFontSize) requestedFontSize = info[5].As<Napi::Number>().FloatValue();
+  const bool hasTextColor = info.Length() >= 8 && !info[7].IsUndefined() && !info[7].IsNull();
+  unsigned int requestedR = 0, requestedG = 0, requestedB = 0;
+  if (hasTextColor && !ParseHexColor(info[7], &requestedR, &requestedG, &requestedB)) {
+    Napi::TypeError::New(env, "editTextObject: textColor must be #RRGGBB")
+      .ThrowAsJavaScriptException();
+    return;
+  }
 
   FPDF_DOCUMENT doc = RequireDocument(env, handle);
   if (!doc) return;
@@ -184,6 +212,8 @@ void EditTextObject(const Napi::CallbackInfo& info) {
     float fontSize = 12.0f;
     FPDFTextObj_GetFontSize(obj, &fontSize);
     FPDF_TEXT_RENDERMODE renderMode = FPDFTextObj_GetTextRenderMode(obj);
+    unsigned int originalR = 0, originalG = 0, originalB = 0, originalA = 255;
+    FPDFPageObj_GetFillColor(obj, &originalR, &originalG, &originalB, &originalA);
 
     FPDF_FONT font = FPDFText_LoadFont(
       doc, fontData, fontDataSize, FPDF_FONT_TRUETYPE, /*cid=*/true
@@ -197,6 +227,16 @@ void EditTextObject(const Napi::CallbackInfo& info) {
         reinterpret_cast<FPDF_WIDESTRING>(newText.c_str())
       );
       if (ok) ok = FPDFPageObj_SetMatrix(replacement, &matrix);
+      if (ok && hasRequestedFontSize) ok = FPDFTextObj_SetFontSize(replacement, requestedFontSize);
+      if (ok) {
+        ok = FPDFPageObj_SetFillColor(
+          replacement,
+          hasTextColor ? requestedR : originalR,
+          hasTextColor ? requestedG : originalG,
+          hasTextColor ? requestedB : originalB,
+          hasTextColor ? 255 : originalA
+        );
+      }
       if (ok && renderMode != FPDF_TEXTRENDERMODE_UNKNOWN) {
         ok = FPDFTextObj_SetTextRenderMode(replacement, renderMode);
       }
@@ -219,6 +259,8 @@ void EditTextObject(const Napi::CallbackInfo& info) {
       obj,
       reinterpret_cast<FPDF_WIDESTRING>(newText.c_str())
     );
+    if (ok && hasRequestedFontSize) ok = FPDFTextObj_SetFontSize(obj, requestedFontSize);
+    if (ok && hasTextColor) ok = FPDFPageObj_SetFillColor(obj, requestedR, requestedG, requestedB, 255);
   }
 
   if (!ok) {
@@ -260,6 +302,13 @@ Napi::Value InsertTextObject(const Napi::CallbackInfo& info) {
   if (info.Length() >= 7 && info[6].IsNumber()) {
     fontSize = info[6].As<Napi::Number>().FloatValue();
   }
+  const bool hasTextColor = info.Length() >= 8 && !info[7].IsUndefined() && !info[7].IsNull();
+  unsigned int textR = 0, textG = 0, textB = 0;
+  if (hasTextColor && !ParseHexColor(info[7], &textR, &textG, &textB)) {
+    Napi::TypeError::New(env, "insertTextObject: textColor must be #RRGGBB")
+      .ThrowAsJavaScriptException();
+    return env.Undefined();
+  }
   if (text.empty() || fontSize <= 0.0f) {
     Napi::RangeError::New(env, "insertTextObject: text and fontSize are required")
       .ThrowAsJavaScriptException();
@@ -287,6 +336,7 @@ Napi::Value InsertTextObject(const Napi::CallbackInfo& info) {
   if (ok) {
     ok = FPDFText_SetText(obj, reinterpret_cast<FPDF_WIDESTRING>(text.c_str()));
   }
+  if (ok && hasTextColor) ok = FPDFPageObj_SetFillColor(obj, textR, textG, textB, 255);
   if (ok) {
     FS_MATRIX matrix{1.0f, 0.0f, 0.0f, 1.0f, x, y};
     ok = FPDFPageObj_SetMatrix(obj, &matrix);

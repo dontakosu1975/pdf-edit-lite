@@ -61,6 +61,9 @@ const btnUndo = document.getElementById('btn-undo') as HTMLButtonElement;
 const btnRedo = document.getElementById('btn-redo') as HTMLButtonElement;
 const textContextMenu = document.getElementById('text-context-menu') as HTMLDivElement;
 const btnDeleteText = document.getElementById('btn-delete-text') as HTMLButtonElement;
+const fontSizeInput = document.getElementById('font-size') as HTMLInputElement;
+const textColorMode = document.getElementById('text-color-mode') as HTMLSelectElement;
+const textColorInput = document.getElementById('text-color') as HTMLInputElement;
 
 // Thumbnails panel
 const thumbnailsPanel = document.getElementById('thumbnails-panel') as HTMLElement;
@@ -158,10 +161,21 @@ let dragMove: { objectId: number; startX: number; startY: number } | null = null
 // restore the font choice that was in effect before an edit.
 const insertedTextObjectIds = new Set<number>();
 const objectFontNames = new Map<number, string | undefined>();
+const objectFontSizes = new Map<number, number | undefined>();
+const objectTextColors = new Map<number, string | undefined>();
 let contextMenuObjectId: number | null = null;
 
 function selectedFontName(): string | undefined {
   return fontSelect.value === 'auto' ? undefined : fontSelect.value;
+}
+
+function selectedFontSize(): number | undefined {
+  const value = Number.parseFloat(fontSizeInput.value);
+  return Number.isFinite(value) && value > 0 ? value : undefined;
+}
+
+function selectedTextColor(): string | undefined {
+  return textColorMode.value === 'custom' ? textColorInput.value : undefined;
 }
 
 // ── Initialization ──────────────────────────────────────────────────
@@ -195,7 +209,13 @@ async function init(): Promise<void> {
   btnToolMoveText.addEventListener('click', () => setToolMode('move-text'));
   btnToolReplaceImage.addEventListener('click', () => setToolMode('replace-image'));
   btnCommitEdit.addEventListener('click', () => activeEditorCommit?.());
-  fontSelect.addEventListener('change', () => { void applyFontToSelectedText(); });
+  fontSelect.addEventListener('change', () => { void applyStyleToSelectedText(); });
+  fontSizeInput.addEventListener('change', () => { void applyStyleToSelectedText(); });
+  textColorMode.addEventListener('change', () => { void applyStyleToSelectedText(); });
+  textColorInput.addEventListener('input', () => {
+    textColorMode.value = 'custom';
+    void applyStyleToSelectedText();
+  });
   btnUndo.addEventListener('click', () => undoStack.undo());
   btnRedo.addEventListener('click', () => undoStack.redo());
 
@@ -282,6 +302,8 @@ async function handleOpen(): Promise<void> {
     state.pageObjects = [];
     insertedTextObjectIds.clear();
     objectFontNames.clear();
+    objectFontSizes.clear();
+    objectTextColors.clear();
     hideTextContextMenu();
     undoStack.clear();
   } catch (err) {
@@ -634,6 +656,16 @@ function syncFontPickerToObject(objectId: number): void {
   if ([...fontSelect.options].some((option) => option.value === value)) {
     fontSelect.value = value;
   }
+  fontSizeInput.value = objectFontSizes.has(objectId) && objectFontSizes.get(objectId) !== undefined
+    ? String(objectFontSizes.get(objectId)) : '';
+  fontSizeInput.placeholder = objectFontSizes.has(objectId) ? 'pt' : '元';
+  const textColor = objectTextColors.get(objectId);
+  if (textColor) {
+    textColorMode.value = 'custom';
+    textColorInput.value = textColor;
+  } else {
+    textColorMode.value = 'original';
+  }
 }
 
 function handleCanvasContextMenu(e: MouseEvent): void {
@@ -674,6 +706,8 @@ async function deleteInsertedTextFromContextMenu(): Promise<void> {
   const x = obj.left;
   const y = obj.bottom;
   const fontName = objectFontNames.get(objectId);
+  const fontSize = objectFontSizes.get(objectId) ?? 12;
+  const textColor = objectTextColors.get(objectId);
   let currentObjectId = objectId;
   const cmd: EditCommand = {
     description: 'Delete inserted text object',
@@ -687,12 +721,15 @@ async function deleteInsertedTextFromContextMenu(): Promise<void> {
     },
     async undo(): Promise<void> {
       const result = await window.api.pdf.insertText({
-        docId, pageIndex, x, y, newText: text, fontSize: 12,
+        docId, pageIndex, x, y, newText: text, fontSize,
         fontName: fontName === undefined ? undefined : fontName,
+        textColor,
       });
       currentObjectId = result.objectId;
       insertedTextObjectIds.add(currentObjectId);
       objectFontNames.set(currentObjectId, fontName);
+      objectFontSizes.set(currentObjectId, fontSize);
+      objectTextColors.set(currentObjectId, textColor);
       state.selectedObjectId = currentObjectId;
       markDirty();
       await renderCurrentPage();
@@ -701,7 +738,7 @@ async function deleteInsertedTextFromContextMenu(): Promise<void> {
   await undoStack.push(cmd);
 }
 
-async function applyFontToSelectedText(): Promise<void> {
+async function applyStyleToSelectedText(): Promise<void> {
   if (!state.docId || state.selectedObjectId === null) return;
   const obj = state.pageObjects.find((candidate) => candidate.id === state.selectedObjectId);
   if (!obj || obj.type !== 'text') return;
@@ -711,21 +748,40 @@ async function applyFontToSelectedText(): Promise<void> {
   const pageIndex = state.currentPage;
   const newText = obj.text || ' ';
   const previousFontName = objectFontNames.has(objectId) ? objectFontNames.get(objectId) : 'original';
+  const previousFontSize = objectFontSizes.has(objectId) ? objectFontSizes.get(objectId) : undefined;
+  const previousTextColor = objectTextColors.has(objectId) ? objectTextColors.get(objectId) : undefined;
   const newFontName = selectedFontName();
-  if (previousFontName === newFontName) return;
+  const newFontSize = selectedFontSize();
+  const newTextColor = selectedTextColor();
+  if (previousFontName === newFontName && previousFontSize === newFontSize && previousTextColor === newTextColor) return;
 
   const cmd: EditCommand = {
     description: `Change font for text object ${objectId}`,
     async execute(): Promise<void> {
-      await window.api.pdf.editText({ docId, pageIndex, objectId, newText, fontName: newFontName });
-      objectFontNames.set(objectId, newFontName);
+      await window.api.pdf.editText({
+        docId, pageIndex, objectId, newText, fontName: newFontName,
+        fontSize: newFontSize, textColor: newTextColor,
+      });
+      if (newFontName === 'original') objectFontNames.delete(objectId);
+      else objectFontNames.set(objectId, newFontName);
+      if (newFontSize === undefined) objectFontSizes.delete(objectId);
+      else objectFontSizes.set(objectId, newFontSize);
+      if (newTextColor === undefined) objectTextColors.delete(objectId);
+      else objectTextColors.set(objectId, newTextColor);
       markDirty();
       await renderCurrentPage();
     },
     async undo(): Promise<void> {
-      await window.api.pdf.editText({ docId, pageIndex, objectId, newText, fontName: previousFontName });
+      await window.api.pdf.editText({
+        docId, pageIndex, objectId, newText, fontName: previousFontName,
+        fontSize: previousFontSize, textColor: previousTextColor,
+      });
       if (previousFontName === 'original') objectFontNames.delete(objectId);
       else objectFontNames.set(objectId, previousFontName);
+      if (previousFontSize === undefined) objectFontSizes.delete(objectId);
+      else objectFontSizes.set(objectId, previousFontSize);
+      if (previousTextColor === undefined) objectTextColors.delete(objectId);
+      else objectTextColors.set(objectId, previousTextColor);
       syncFontPickerToObject(objectId);
       markDirty();
       await renderCurrentPage();
@@ -849,7 +905,11 @@ function openInPlaceTextEditor(obj: PageObject): void {
     const pageIndex = state.currentPage;
     const objectId = obj.id;
     const previousFontName = objectFontNames.has(objectId) ? objectFontNames.get(objectId) : 'original';
+    const previousFontSize = objectFontSizes.has(objectId) ? objectFontSizes.get(objectId) : undefined;
+    const previousTextColor = objectTextColors.has(objectId) ? objectTextColors.get(objectId) : undefined;
     const newFontName = selectedFontName();
+    const newFontSize = selectedFontSize();
+    const newTextColor = selectedTextColor();
 
     const cmd: EditCommand = {
       description: `Edit text object ${objectId}`,
@@ -859,8 +919,15 @@ function openInPlaceTextEditor(obj: PageObject): void {
         await window.api.pdf.editText({
           docId, pageIndex, objectId, newText: newText || ' ',
           fontName: newFontName,
+          fontSize: newFontSize,
+          textColor: newTextColor,
         });
-        objectFontNames.set(objectId, newFontName);
+        if (newFontName === 'original') objectFontNames.delete(objectId);
+        else objectFontNames.set(objectId, newFontName);
+        if (newFontSize === undefined) objectFontSizes.delete(objectId);
+        else objectFontSizes.set(objectId, newFontSize);
+        if (newTextColor === undefined) objectTextColors.delete(objectId);
+        else objectTextColors.set(objectId, newTextColor);
         markDirty();
         await renderCurrentPage();
       },
@@ -868,9 +935,15 @@ function openInPlaceTextEditor(obj: PageObject): void {
         await window.api.pdf.editText({
           docId, pageIndex, objectId, newText: originalText || ' ',
           fontName: previousFontName,
+          fontSize: previousFontSize,
+          textColor: previousTextColor,
         });
         if (previousFontName === 'original') objectFontNames.delete(objectId);
         else objectFontNames.set(objectId, previousFontName);
+        if (previousFontSize === undefined) objectFontSizes.delete(objectId);
+        else objectFontSizes.set(objectId, previousFontSize);
+        if (previousTextColor === undefined) objectTextColors.delete(objectId);
+        else objectTextColors.set(objectId, previousTextColor);
         syncFontPickerToObject(objectId);
         markDirty();
         await renderCurrentPage();
@@ -942,17 +1015,22 @@ function openNewTextEditor(pdfX: number, pdfY: number, canvasX: number, canvasY:
     const docId = state.docId;
     const pageIndex = state.currentPage;
   const insertedFontName = selectedFontName();
+    const insertedFontSize = selectedFontSize() ?? 12;
+    const insertedTextColor = selectedTextColor();
     let insertedObjectId = -1;
     const cmd: EditCommand = {
       description: 'Insert text object',
       async execute(): Promise<void> {
         const result = await window.api.pdf.insertText({
-          docId, pageIndex, x: pdfX, y: pdfY, newText, fontSize: 12,
+          docId, pageIndex, x: pdfX, y: pdfY, newText, fontSize: insertedFontSize,
           fontName: insertedFontName,
+          textColor: insertedTextColor,
         });
         insertedObjectId = result.objectId;
         insertedTextObjectIds.add(insertedObjectId);
         objectFontNames.set(insertedObjectId, insertedFontName);
+        objectFontSizes.set(insertedObjectId, insertedFontSize);
+        objectTextColors.set(insertedObjectId, insertedTextColor);
         markDirty();
         await renderCurrentPage();
       },
@@ -961,6 +1039,8 @@ function openNewTextEditor(pdfX: number, pdfY: number, canvasX: number, canvasY:
         await window.api.pdf.removeText({ docId, pageIndex, objectId: insertedObjectId });
         insertedTextObjectIds.delete(insertedObjectId);
         objectFontNames.delete(insertedObjectId);
+        objectFontSizes.delete(insertedObjectId);
+        objectTextColors.delete(insertedObjectId);
         if (state.selectedObjectId === insertedObjectId) state.selectedObjectId = null;
         markDirty();
         await renderCurrentPage();

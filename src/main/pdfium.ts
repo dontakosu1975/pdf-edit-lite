@@ -89,6 +89,7 @@ interface PdfiumAddon {
     fontName?: string,
     fontSize?: number,
     fontData?: Buffer,
+    textColor?: string,
   ): void;
   insertTextObject(
     handle: number,
@@ -98,6 +99,7 @@ interface PdfiumAddon {
     newText: string,
     fontData: Buffer,
     fontSize?: number,
+    textColor?: string,
   ): number;
   removeTextObject(handle: number, pageIndex: number, objectId: number): void;
   moveTextObject(handle: number, pageIndex: number, objectId: number, dx: number, dy: number): void;
@@ -351,6 +353,7 @@ export class PdfiumEngine {
     newText: string,
     fontName?: string,
     fontSize?: number,
+    textColor?: string,
   ): void {
     const handle = this.requireHandle(docId);
     this.validatePageIndex(handle, pageIndex);
@@ -371,6 +374,7 @@ export class PdfiumEngine {
       this.addon.editTextObject(
         handle, pageIndex, objectId, newText, fontName, fontSize,
         needsFallbackFont ? this.getEditorFontData(fontName) : undefined,
+        textColor,
       );
     } catch (err) {
       throw new PdfiumError(
@@ -389,6 +393,7 @@ export class PdfiumEngine {
     newText: string,
     fontSize?: number,
     fontName?: string,
+    textColor?: string,
   ): number {
     const handle = this.requireHandle(docId);
     if (!newText.trim()) {
@@ -404,7 +409,7 @@ export class PdfiumEngine {
     }
     try {
       return this.addon.insertTextObject(
-        handle, pageIndex, x, y, newText, fontData, fontSize,
+        handle, pageIndex, x, y, newText, fontData, fontSize, textColor,
       );
     } catch (err) {
       throw new PdfiumError(
