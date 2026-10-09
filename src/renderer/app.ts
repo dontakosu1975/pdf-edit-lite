@@ -169,6 +169,16 @@ const objectFontNames = new Map<number, string | undefined>();
 const objectFontSizes = new Map<number, number | undefined>();
 const objectTextColors = new Map<number, string | undefined>();
 let contextMenuObjectId: number | null = null;
+interface TextStyle {
+  fontName: string | undefined;
+  fontSize: number | undefined;
+  textColor: string | undefined;
+}
+let lastTextStyle: TextStyle | null = null;
+
+function rememberTextStyle(style: TextStyle): void {
+  lastTextStyle = { ...style };
+}
 
 function selectedFontName(): string | undefined {
   return fontSelect.value === 'auto' ? undefined : fontSelect.value;
@@ -327,6 +337,7 @@ async function handleOpen(): Promise<void> {
     objectFontNames.clear();
     objectFontSizes.clear();
     objectTextColors.clear();
+    lastTextStyle = null;
     hideTextContextMenu();
     undoStack.clear();
   } catch (err) {
@@ -422,6 +433,11 @@ async function handleDrop(e: DragEvent): Promise<void> {
     state.modified = false;
     state.selectedObjectId = null;
     state.pageObjects = [];
+    insertedTextObjectIds.clear();
+    objectFontNames.clear();
+    objectFontSizes.clear();
+    objectTextColors.clear();
+    lastTextStyle = null;
     undoStack.clear();
   } catch (err) {
     setStatus(`PDFを開けませんでした: ${(err as Error).message}`);
@@ -807,6 +823,7 @@ async function applyStyleToSelectedText(): Promise<void> {
       else objectFontSizes.set(objectId, newFontSize);
       if (newTextColor === undefined) objectTextColors.delete(objectId);
       else objectTextColors.set(objectId, newTextColor);
+      rememberTextStyle({ fontName: newFontName, fontSize: newFontSize, textColor: newTextColor });
       markDirty();
       await renderCurrentPage();
     },
@@ -822,6 +839,7 @@ async function applyStyleToSelectedText(): Promise<void> {
       else objectFontSizes.set(objectId, previousFontSize);
       if (previousTextColor === undefined) objectTextColors.delete(objectId);
       else objectTextColors.set(objectId, previousTextColor);
+      rememberTextStyle({ fontName: previousFontName, fontSize: previousFontSize, textColor: previousTextColor });
       syncFontPickerToObject(objectId);
       markDirty();
       await renderCurrentPage();
@@ -971,6 +989,7 @@ function openInPlaceTextEditor(obj: PageObject): void {
         else objectFontSizes.set(objectId, newFontSize);
         if (newTextColor === undefined) objectTextColors.delete(objectId);
         else objectTextColors.set(objectId, newTextColor);
+        rememberTextStyle({ fontName: newFontName, fontSize: newFontSize, textColor: newTextColor });
         markDirty();
         await renderCurrentPage();
       },
@@ -988,6 +1007,7 @@ function openInPlaceTextEditor(obj: PageObject): void {
         else objectFontSizes.set(objectId, previousFontSize);
         if (previousTextColor === undefined) objectTextColors.delete(objectId);
         else objectTextColors.set(objectId, previousTextColor);
+        rememberTextStyle({ fontName: previousFontName, fontSize: previousFontSize, textColor: previousTextColor });
         syncFontPickerToObject(objectId);
         markDirty();
         await renderCurrentPage();
@@ -1058,9 +1078,10 @@ function openNewTextEditor(pdfX: number, pdfY: number, canvasX: number, canvasY:
 
     const docId = state.docId;
     const pageIndex = state.currentPage;
-  const insertedFontName = selectedFontName();
-    const insertedFontSize = selectedFontSize() ?? 12;
-    const insertedTextColor = selectedTextColor();
+    const rememberedStyle = lastTextStyle;
+    const insertedFontName = rememberedStyle ? rememberedStyle.fontName : selectedFontName();
+    const insertedFontSize = rememberedStyle?.fontSize ?? selectedFontSize() ?? 12;
+    const insertedTextColor = rememberedStyle ? rememberedStyle.textColor : selectedTextColor();
     let insertedObjectId = -1;
     const cmd: EditCommand = {
       description: 'Insert text object',
@@ -1075,6 +1096,7 @@ function openNewTextEditor(pdfX: number, pdfY: number, canvasX: number, canvasY:
         objectFontNames.set(insertedObjectId, insertedFontName);
         objectFontSizes.set(insertedObjectId, insertedFontSize);
         objectTextColors.set(insertedObjectId, insertedTextColor);
+        rememberTextStyle({ fontName: insertedFontName, fontSize: insertedFontSize, textColor: insertedTextColor });
         markDirty();
         await renderCurrentPage();
       },
@@ -1252,6 +1274,7 @@ async function pasteTextObject(): Promise<void> {
       objectFontNames.set(pastedObjectId, fontName);
       objectFontSizes.set(pastedObjectId, fontSize);
       objectTextColors.set(pastedObjectId, textColor);
+      rememberTextStyle({ fontName, fontSize, textColor });
       state.selectedObjectId = pastedObjectId;
       setToolMode('move-text');
       markDirty();
