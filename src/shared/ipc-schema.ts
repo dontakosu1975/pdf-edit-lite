@@ -42,6 +42,7 @@ export const IPC_CHANNELS = {
   PDF_EDIT_TEXT: 'pdf:edit-text',
   PDF_INSERT_TEXT: 'pdf:insert-text',
   PDF_REMOVE_TEXT: 'pdf:remove-text',
+  PDF_MOVE_TEXT: 'pdf:move-text',
   PDF_REPLACE_IMAGE: 'pdf:replace-image',
   PDF_SAVE: 'pdf:save',
 
@@ -163,6 +164,15 @@ export interface PdfRemoveTextPayload {
   docId: string;
   pageIndex: number;
   objectId: number;
+}
+
+/** Payload for moving a text object by a PDF-point delta. */
+export interface PdfMoveTextPayload {
+  docId: string;
+  pageIndex: number;
+  objectId: number;
+  dx: number;
+  dy: number;
 }
 
 /** Payload for replacing an image object. */

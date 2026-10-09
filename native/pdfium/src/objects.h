@@ -31,6 +31,12 @@ Napi::Value InsertTextObject(const Napi::CallbackInfo& info);
 void RemoveTextObject(const Napi::CallbackInfo& info);
 
 /**
+ * moveTextObject(handle, pageIndex, objectId, dx, dy)
+ * → void
+ */
+void MoveTextObject(const Napi::CallbackInfo& info);
+
+/**
  * replaceImageObject(handle, pageIndex, objectId, imageData, format)
  * → void
  */

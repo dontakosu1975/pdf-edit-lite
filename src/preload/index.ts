@@ -21,6 +21,7 @@ import {
   type PdfEditTextPayload,
   type PdfInsertTextPayload,
   type PdfRemoveTextPayload,
+  type PdfMoveTextPayload,
   type PdfReplaceImagePayload,
   type PdfSavePayload,
   type PdfSaveResult,
@@ -113,6 +114,9 @@ const api = {
 
     removeText: (payload: PdfRemoveTextPayload): Promise<{ ok: true }> =>
       ipcRenderer.invoke(IPC_CHANNELS.PDF_REMOVE_TEXT, payload),
+
+    moveText: (payload: PdfMoveTextPayload): Promise<{ ok: true }> =>
+      ipcRenderer.invoke(IPC_CHANNELS.PDF_MOVE_TEXT, payload),
 
     replaceImage: (payload: PdfReplaceImagePayload): Promise<{ ok: true }> =>
       ipcRenderer.invoke(IPC_CHANNELS.PDF_REPLACE_IMAGE, payload),

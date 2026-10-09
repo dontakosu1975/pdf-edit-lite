@@ -345,6 +345,61 @@ void RemoveTextObject(const Napi::CallbackInfo& info) {
   CachePageDirty(handle, pageIndex, page);
 }
 
+void MoveTextObject(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  if (info.Length() < 5 || !info[0].IsNumber() || !info[1].IsNumber() ||
+      !info[2].IsNumber() || !info[3].IsNumber() || !info[4].IsNumber()) {
+    Napi::TypeError::New(env,
+      "moveTextObject: requires (handle, pageIndex, objectId, dx, dy)"
+    ).ThrowAsJavaScriptException();
+    return;
+  }
+
+  int handle = info[0].As<Napi::Number>().Int32Value();
+  int pageIndex = info[1].As<Napi::Number>().Int32Value();
+  int objectId = info[2].As<Napi::Number>().Int32Value();
+  float dx = info[3].As<Napi::Number>().FloatValue();
+  float dy = info[4].As<Napi::Number>().FloatValue();
+  FPDF_DOCUMENT doc = RequireDocument(env, handle);
+  if (!doc) return;
+
+  bool fromCache = false;
+  FPDF_PAGE page = AcquirePage(handle, doc, pageIndex, fromCache);
+  if (!page) {
+    Napi::Error::New(env, "moveTextObject: failed to load page")
+      .ThrowAsJavaScriptException();
+    return;
+  }
+  if (objectId < 0 || objectId >= FPDFPage_CountObjects(page)) {
+    ReleasePage(handle, pageIndex, page, fromCache);
+    Napi::RangeError::New(env, "moveTextObject: objectId out of range")
+      .ThrowAsJavaScriptException();
+    return;
+  }
+  FPDF_PAGEOBJECT obj = FPDFPage_GetObject(page, objectId);
+  if (FPDFPageObj_GetType(obj) != FPDF_PAGEOBJ_TEXT) {
+    ReleasePage(handle, pageIndex, page, fromCache);
+    Napi::TypeError::New(env, "moveTextObject: object is not a text object")
+      .ThrowAsJavaScriptException();
+    return;
+  }
+
+  FS_MATRIX matrix{};
+  FPDF_BOOL ok = FPDFPageObj_GetMatrix(obj, &matrix);
+  if (ok) {
+    matrix.e += dx;
+    matrix.f += dy;
+    ok = FPDFPageObj_SetMatrix(obj, &matrix);
+  }
+  if (!ok) {
+    ReleasePage(handle, pageIndex, page, fromCache);
+    Napi::Error::New(env, "moveTextObject: failed to update transform")
+      .ThrowAsJavaScriptException();
+    return;
+  }
+  CachePageDirty(handle, pageIndex, page);
+}
+
 // ── replaceImageObject ──────────────────────────────────────────────
 
 /**

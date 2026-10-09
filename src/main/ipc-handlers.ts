@@ -21,6 +21,7 @@ import {
   type PdfEditTextPayload,
   type PdfInsertTextPayload,
   type PdfRemoveTextPayload,
+  type PdfMoveTextPayload,
   type PdfReplaceImagePayload,
   type PdfSavePayload,
   type PdfSaveResult,
@@ -345,6 +346,17 @@ export function registerIpcHandlers(): void {
     IPC_CHANNELS.PDF_REMOVE_TEXT,
     async (_event, payload: PdfRemoveTextPayload): Promise<{ ok: true }> => {
       pdfiumEngine.removeTextObject(payload.docId, payload.pageIndex, payload.objectId);
+      bitmapCache.invalidatePage(payload.docId, payload.pageIndex);
+      return { ok: true };
+    },
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.PDF_MOVE_TEXT,
+    async (_event, payload: PdfMoveTextPayload): Promise<{ ok: true }> => {
+      pdfiumEngine.moveTextObject(
+        payload.docId, payload.pageIndex, payload.objectId, payload.dx, payload.dy,
+      );
       bitmapCache.invalidatePage(payload.docId, payload.pageIndex);
       return { ok: true };
     },

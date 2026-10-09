@@ -53,7 +53,9 @@ const pageTotalEl = document.getElementById('page-total') as HTMLSpanElement;
 const btnToolSelect = document.getElementById('btn-tool-select') as HTMLButtonElement;
 const btnToolEditText = document.getElementById('btn-tool-edit-text') as HTMLButtonElement;
 const btnToolInsertText = document.getElementById('btn-tool-insert-text') as HTMLButtonElement;
+const btnToolMoveText = document.getElementById('btn-tool-move-text') as HTMLButtonElement;
 const btnToolReplaceImage = document.getElementById('btn-tool-replace-image') as HTMLButtonElement;
+const btnCommitEdit = document.getElementById('btn-commit-edit') as HTMLButtonElement;
 const btnUndo = document.getElementById('btn-undo') as HTMLButtonElement;
 const btnRedo = document.getElementById('btn-redo') as HTMLButtonElement;
 
@@ -62,7 +64,7 @@ const thumbnailsPanel = document.getElementById('thumbnails-panel') as HTMLEleme
 
 // ── State ───────────────────────────────────────────────────────────
 
-type ToolMode = 'select' | 'edit-text' | 'insert-text' | 'replace-image';
+type ToolMode = 'select' | 'edit-text' | 'insert-text' | 'move-text' | 'replace-image';
 
 interface AppState {
   filePath: string | null;
@@ -147,6 +149,8 @@ class UndoStack {
 }
 
 const undoStack = new UndoStack();
+let activeEditorCommit: (() => void) | null = null;
+let dragMove: { objectId: number; startX: number; startY: number } | null = null;
 
 // ── Initialization ──────────────────────────────────────────────────
 async function init(): Promise<void> {
@@ -175,13 +179,18 @@ async function init(): Promise<void> {
   btnToolSelect.addEventListener('click', () => setToolMode('select'));
   btnToolEditText.addEventListener('click', () => setToolMode('edit-text'));
   btnToolInsertText.addEventListener('click', () => setToolMode('insert-text'));
+  btnToolMoveText.addEventListener('click', () => setToolMode('move-text'));
   btnToolReplaceImage.addEventListener('click', () => setToolMode('replace-image'));
+  btnCommitEdit.addEventListener('click', () => activeEditorCommit?.());
   btnUndo.addEventListener('click', () => undoStack.undo());
   btnRedo.addEventListener('click', () => undoStack.redo());
 
   // Canvas click for object selection
   overlayCanvas.addEventListener('click', handleCanvasClick);
   overlayCanvas.addEventListener('dblclick', handleCanvasDblClick);
+  overlayCanvas.addEventListener('mousedown', handleCanvasMouseDown);
+  window.addEventListener('mousemove', handleCanvasMouseMove);
+  window.addEventListener('mouseup', handleCanvasMouseUp);
 
   // Wire drag-and-drop
   viewerContainer.addEventListener('dragover', (e) => {
@@ -202,9 +211,11 @@ async function init(): Promise<void> {
   // Close guard
   window.addEventListener('beforeunload', (e) => {
     if (state.modified) {
-      e.preventDefault();
-      // Most browsers require returnValue to be set
-      e.returnValue = '';
+      const leave = window.confirm('未保存の変更があります。保存せずに閉じますか？');
+      if (!leave) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
     }
   });
 
@@ -567,6 +578,62 @@ function handleCanvasClick(e: MouseEvent): void {
   updatePropertiesPanel(hit);
 }
 
+function handleCanvasMouseDown(e: MouseEvent): void {
+  if (!state.docId || state.toolMode !== 'move-text') return;
+  const rect = overlayCanvas.getBoundingClientRect();
+  const scale = state.zoomPercent / 100;
+  const x = (e.clientX - rect.left) / scale;
+  const y = (overlayCanvas.height - (e.clientY - rect.top)) / scale;
+  for (let i = state.pageObjects.length - 1; i >= 0; i--) {
+    const obj = state.pageObjects[i];
+    if (obj.type === 'text' && x >= obj.left && x <= obj.right && y >= obj.bottom && y <= obj.top) {
+      state.selectedObjectId = obj.id;
+      drawSelectionOverlay();
+      updatePropertiesPanel(obj);
+      dragMove = { objectId: obj.id, startX: e.clientX, startY: e.clientY };
+      overlayCanvas.style.cursor = 'grabbing';
+      e.preventDefault();
+      return;
+    }
+  }
+}
+
+function handleCanvasMouseMove(e: MouseEvent): void {
+  if (dragMove) e.preventDefault();
+}
+
+function handleCanvasMouseUp(e: MouseEvent): void {
+  if (!dragMove || !state.docId) return;
+  const drag = dragMove;
+  dragMove = null;
+  overlayCanvas.style.cursor = 'crosshair';
+  const scale = state.zoomPercent / 100;
+  const dx = (e.clientX - drag.startX) / scale;
+  const dy = -(e.clientY - drag.startY) / scale;
+  if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) return;
+  void moveTextWithUndo(drag.objectId, dx, dy);
+}
+
+async function moveTextWithUndo(objectId: number, dx: number, dy: number): Promise<void> {
+  if (!state.docId) return;
+  const docId = state.docId;
+  const pageIndex = state.currentPage;
+  const cmd: EditCommand = {
+    description: `Move text object ${objectId}`,
+    async execute(): Promise<void> {
+      await window.api.pdf.moveText({ docId, pageIndex, objectId, dx, dy });
+      markDirty();
+      await renderCurrentPage();
+    },
+    async undo(): Promise<void> {
+      await window.api.pdf.moveText({ docId, pageIndex, objectId, dx: -dx, dy: -dy });
+      markDirty();
+      await renderCurrentPage();
+    },
+  };
+  await undoStack.push(cmd);
+}
+
 function handleCanvasDblClick(e: MouseEvent): void {
   if (!state.docId || !state.selectedObjectId) return;
 
@@ -617,6 +684,8 @@ function openInPlaceTextEditor(obj: PageObject): void {
   const commitEdit = async (): Promise<void> => {
     const newText = editor.textContent ?? '';
     editor.remove();
+    activeEditorCommit = null;
+    btnCommitEdit.disabled = true;
     if (!state.docId || newText === originalText) return;
 
     const docId = state.docId;
@@ -650,6 +719,8 @@ function openInPlaceTextEditor(obj: PageObject): void {
       commitEdit();
     }
     if (e.key === 'Escape') {
+      activeEditorCommit = null;
+      btnCommitEdit.disabled = true;
       editor.remove();
     }
   });
@@ -660,6 +731,8 @@ function openInPlaceTextEditor(obj: PageObject): void {
   });
 
   viewerContainer.appendChild(editor);
+  activeEditorCommit = () => { void commitEdit(); };
+  btnCommitEdit.disabled = false;
   editor.focus();
 
   // Select all text for easy replacement
@@ -695,6 +768,8 @@ function openNewTextEditor(pdfX: number, pdfY: number, canvasX: number, canvasY:
     committed = true;
     const newText = editor.textContent ?? '';
     editor.remove();
+    activeEditorCommit = null;
+    btnCommitEdit.disabled = true;
     if (!state.docId || !newText.trim()) return;
 
     const docId = state.docId;
@@ -727,6 +802,8 @@ function openNewTextEditor(pdfX: number, pdfY: number, canvasX: number, canvasY:
     }
     if (e.key === 'Escape') {
       committed = true;
+      activeEditorCommit = null;
+      btnCommitEdit.disabled = true;
       editor.remove();
     }
   });
@@ -734,6 +811,8 @@ function openNewTextEditor(pdfX: number, pdfY: number, canvasX: number, canvasY:
     if (editor.parentElement) void commitInsert();
   });
   viewerContainer.appendChild(editor);
+  activeEditorCommit = () => { void commitInsert(); };
+  btnCommitEdit.disabled = false;
   editor.focus();
 }
 
@@ -787,6 +866,7 @@ function setToolMode(mode: ToolMode): void {
   btnToolSelect.classList.toggle('active', mode === 'select');
   btnToolEditText.classList.toggle('active', mode === 'edit-text');
   btnToolInsertText.classList.toggle('active', mode === 'insert-text');
+  btnToolMoveText.classList.toggle('active', mode === 'move-text');
   btnToolReplaceImage.classList.toggle('active', mode === 'replace-image');
   overlayCanvas.style.cursor = mode === 'select' ? 'default' : 'crosshair';
 }
@@ -859,7 +939,22 @@ function handleKeyboard(e: KeyboardEvent): void {
   if (e.key === 'v' && !mod) { setToolMode('select'); }
   if (e.key === 't' && !mod) { setToolMode('edit-text'); }
   if (e.key === 'n' && !mod) { setToolMode('insert-text'); }
+  if (e.key === 'm' && !mod) { setToolMode('move-text'); }
   if (e.key === 'i' && !mod) { setToolMode('replace-image'); }
+
+  if (state.toolMode === 'move-text' && state.selectedObjectId !== null && !mod) {
+    const distance = e.shiftKey ? 5 : 1;
+    const deltas: Record<string, [number, number]> = {
+      ArrowLeft: [-distance, 0], ArrowRight: [distance, 0],
+      ArrowUp: [0, distance], ArrowDown: [0, -distance],
+    };
+    const delta = deltas[e.key];
+    const selected = state.pageObjects.find((obj) => obj.id === state.selectedObjectId);
+    if (delta && selected?.type === 'text') {
+      e.preventDefault();
+      void moveTextWithUndo(selected.id, delta[0], delta[1]);
+    }
+  }
 
   // Escape deselects
   if (e.key === 'Escape') {
@@ -883,6 +978,7 @@ function enableDocumentControls(): void {
   btnToolSelect.disabled = false;
   btnToolEditText.disabled = false;
   btnToolInsertText.disabled = false;
+  btnToolMoveText.disabled = false;
   btnToolReplaceImage.disabled = false;
 }
 

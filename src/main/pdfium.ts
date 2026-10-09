@@ -100,6 +100,7 @@ interface PdfiumAddon {
     fontSize?: number,
   ): number;
   removeTextObject(handle: number, pageIndex: number, objectId: number): void;
+  moveTextObject(handle: number, pageIndex: number, objectId: number, dx: number, dy: number): void;
   replaceImageObject(
     handle: number,
     pageIndex: number,
@@ -140,6 +141,7 @@ const STUB_ADDON: PdfiumAddon = {
   editTextObject() { /* no-op */ },
   insertTextObject(_handle: number, _pageIndex: number, _x: number, _y: number, _newText: string, _fontData: Buffer, _fontSize?: number): number { return 0; },
   removeTextObject() { /* no-op */ },
+  moveTextObject() { /* no-op */ },
   replaceImageObject() { /* no-op */ },
   replaceImageObjectBitmap() { /* no-op */ },
   saveDocument(_handle: number): Buffer {
@@ -390,6 +392,19 @@ export class PdfiumEngine {
       throw new PdfiumError(
         PDFIUM_ERROR_CODES.EDIT_FAILED,
         `Text removal failed: ${(err as Error).message}`,
+      );
+    }
+  }
+
+  /** Move a text object by PDF-point deltas. */
+  moveTextObject(docId: string, pageIndex: number, objectId: number, dx: number, dy: number): void {
+    const handle = this.requireHandle(docId);
+    try {
+      this.addon.moveTextObject(handle, pageIndex, objectId, dx, dy);
+    } catch (err) {
+      throw new PdfiumError(
+        PDFIUM_ERROR_CODES.EDIT_FAILED,
+        `Text move failed: ${(err as Error).message}`,
       );
     }
   }
