@@ -265,17 +265,6 @@ async function init(): Promise<void> {
   // Subscribe to events from main
   window.api.onDocumentError((error) => setStatus(`エラー: ${error}`));
 
-  // Close guard
-  window.addEventListener('beforeunload', (e) => {
-    if (state.modified) {
-      const leave = window.confirm('未保存の変更があります。保存せずに閉じますか？');
-      if (!leave) {
-        e.preventDefault();
-        e.returnValue = '';
-      }
-    }
-  });
-
   setStatus('準備完了');
 }
 
