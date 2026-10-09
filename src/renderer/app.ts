@@ -1340,7 +1340,7 @@ function handleKeyboard(e: KeyboardEvent): void {
   if (e.key === 'm' && !mod) { setToolMode('move-text'); }
   if (e.key === 'i' && !mod) { setToolMode('replace-image'); }
 
-  if (state.toolMode === 'move-text' && state.selectedObjectId !== null && !mod) {
+  if (state.selectedObjectId !== null && !mod) {
     const distance = e.shiftKey ? 5 : 1;
     const deltas: Record<string, [number, number]> = {
       ArrowLeft: [-distance, 0], ArrowRight: [distance, 0],
