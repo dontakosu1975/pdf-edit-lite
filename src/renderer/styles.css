@@ -226,6 +226,12 @@ html, body {
   border-color: #a7c4f1 !important;
   color: #124f9e !important;
 }
+.danger-tool-btn span { color: #c0392b; }
+.danger-tool-btn:hover:not(:disabled) {
+  background: #fff0ee !important;
+  border-color: #e6aaa3 !important;
+  color: #a93226 !important;
+}
 
 .text-format-section {
   display: grid;

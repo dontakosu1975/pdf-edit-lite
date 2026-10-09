@@ -55,6 +55,7 @@ const btnToolEditText = document.getElementById('btn-tool-edit-text') as HTMLBut
 const btnToolInsertText = document.getElementById('btn-tool-insert-text') as HTMLButtonElement;
 const btnToolMoveText = document.getElementById('btn-tool-move-text') as HTMLButtonElement;
 const btnToolReplaceImage = document.getElementById('btn-tool-replace-image') as HTMLButtonElement;
+const btnDeleteSelectedText = document.getElementById('btn-delete-selected-text') as HTMLButtonElement;
 const btnCommitEdit = document.getElementById('btn-commit-edit') as HTMLButtonElement;
 const fontSelect = document.getElementById('font-select') as HTMLSelectElement;
 const btnUndo = document.getElementById('btn-undo') as HTMLButtonElement;
@@ -184,6 +185,7 @@ function updateTextFormatAvailability(): void {
   const selectedText = state.selectedObjectId !== null &&
     state.pageObjects.some((obj) => obj.id === state.selectedObjectId && obj.type === 'text');
   const available = Boolean(state.docId) && (selectedText || state.toolMode === 'insert-text');
+  btnDeleteSelectedText.disabled = !selectedText;
   for (const control of [fontSelect, fontSizeInput, textColorMode, textColorInput]) {
     control.disabled = !available;
   }
@@ -220,6 +222,9 @@ async function init(): Promise<void> {
   btnToolInsertText.addEventListener('click', () => setToolMode('insert-text'));
   btnToolMoveText.addEventListener('click', () => setToolMode('move-text'));
   btnToolReplaceImage.addEventListener('click', () => setToolMode('replace-image'));
+  btnDeleteSelectedText.addEventListener('click', () => {
+    if (state.selectedObjectId !== null) void deleteTextObject(state.selectedObjectId, false);
+  });
   btnCommitEdit.addEventListener('click', () => activeEditorCommit?.());
   fontSelect.addEventListener('change', () => { void applyStyleToSelectedText(); });
   fontSizeInput.addEventListener('change', () => { void applyStyleToSelectedText(); });
@@ -714,7 +719,12 @@ function hideTextContextMenu(): void {
 async function deleteInsertedTextFromContextMenu(): Promise<void> {
   const objectId = contextMenuObjectId;
   hideTextContextMenu();
-  if (objectId === null || !state.docId || !insertedTextObjectIds.has(objectId)) return;
+  if (objectId === null) return;
+  await deleteTextObject(objectId, true);
+}
+
+async function deleteTextObject(objectId: number, insertedOnly: boolean): Promise<void> {
+  if (!state.docId || (insertedOnly && !insertedTextObjectIds.has(objectId))) return;
   const obj = state.pageObjects.find((candidate) => candidate.id === objectId);
   if (!obj || obj.type !== 'text') return;
 
@@ -733,7 +743,11 @@ async function deleteInsertedTextFromContextMenu(): Promise<void> {
       await window.api.pdf.removeText({ docId, pageIndex, objectId: currentObjectId });
       insertedTextObjectIds.delete(currentObjectId);
       objectFontNames.delete(currentObjectId);
+      objectFontSizes.delete(currentObjectId);
+      objectTextColors.delete(currentObjectId);
       if (state.selectedObjectId === currentObjectId) state.selectedObjectId = null;
+      updateTextFormatAvailability();
+      updatePropertiesPanel(null);
       markDirty();
       await renderCurrentPage();
     },
