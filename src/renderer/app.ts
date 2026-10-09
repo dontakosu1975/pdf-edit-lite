@@ -692,6 +692,7 @@ function hitTestObject(pdfX: number, pdfY: number): PageObject | null {
 }
 
 function syncFontPickerToObject(objectId: number): void {
+  const object = state.pageObjects.find((candidate) => candidate.id === objectId && candidate.type === 'text');
   // Existing PDF fonts can be subsetted or malformed for replacement text.
   // Use the installed Meiryo bold as the safe editing default; the original
   // PDF font remains available as an explicit choice in the toolbar.
@@ -710,6 +711,11 @@ function syncFontPickerToObject(objectId: number): void {
   } else {
     textColorMode.value = 'original';
   }
+  rememberTextStyle({
+    fontName: choice,
+    fontSize: objectFontSizes.get(objectId) ?? object?.fontSize,
+    textColor,
+  });
 }
 
 function handleCanvasContextMenu(e: MouseEvent): void {
