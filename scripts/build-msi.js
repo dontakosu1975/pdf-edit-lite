@@ -32,11 +32,11 @@ async function buildMsi() {
     appDirectory: APP_DIR,
     outputDirectory: OUTPUT_DIR,
     description: 'Cross-platform PDF editor with WYSIWYG editing',
-    exe: 'PDF Chisel',
-    name: 'PDF Chisel',
-    manufacturer: 'PDF Chisel Team',
+    exe: 'アフロバット',
+    name: 'アフロバット',
+    manufacturer: 'アフロバット Team',
     version: require('../package.json').version,
-    appIconPath: path.join(__dirname, '..', 'assets', 'icon.ico'),
+    appIconPath: path.join(__dirname, '..', 'assets', 'afrobat-icon.ico'),
     // Stable product upgrade code — do NOT change between releases
     upgradeCode: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
     ui: {

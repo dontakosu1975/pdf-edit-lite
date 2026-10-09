@@ -39,8 +39,8 @@
     "node-addon-api": "^8.0.0"
   },
   "build": {
-    "appId": "com.pdfchisel.app",
-    "productName": "PDF Chisel",
+    "appId": "com.afrobat.app",
+    "productName": "アフロバット",
     "directories": {
       "output": "release"
     },
@@ -75,9 +75,9 @@
           ]
         }
       ],
-      "icon": "assets/icon.ico",
+      "icon": "assets/afrobat-icon.ico",
       "signtoolOptions": {
-        "publisherName": "PDF Chisel"
+        "publisherName": "アフロバット"
       }
     },
     "nsis": {
@@ -86,8 +86,8 @@
       "perMachine": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "PDF Chisel",
-      "uninstallDisplayName": "PDF Chisel"
+      "shortcutName": "アフロバット",
+      "uninstallDisplayName": "アフロバット"
     },
     "mac": {
       "target": [
@@ -99,7 +99,7 @@
           ]
         }
       ],
-      "icon": "assets/icon.icns",
+      "icon": "assets/afrobat-icon.png",
       "hardenedRuntime": true,
       "gatekeeperAssess": false,
       "entitlements": "build/entitlements.mac.plist",
@@ -129,7 +129,7 @@
           ]
         }
       ],
-      "icon": "assets/icon.png",
+      "icon": "assets/afrobat-icon.png",
       "category": "Office"
     },
     "publish": null

@@ -33,7 +33,7 @@ async function createSimpleText() {
   const page = doc.addPage([612, 792]); // US Letter
   const font = await doc.embedFont(StandardFonts.Helvetica);
 
-  page.drawText('Hello, PDF Chisel!', {
+  page.drawText('Hello, アフロバット!', {
     x: 50,
     y: 700,
     size: 24,

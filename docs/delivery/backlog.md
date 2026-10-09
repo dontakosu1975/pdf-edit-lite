@@ -1,4 +1,4 @@
-# Product Backlog — PDF Chisel
+# Product Backlog — アフロバット
 
 | ID | Actor | User Story | Status | Conditions of Satisfaction (CoS) |
 | :-- | :---- | :--------- | :----- | :------------------------------- |

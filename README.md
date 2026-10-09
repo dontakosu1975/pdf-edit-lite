@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/PDF Chisel Logo.png" alt="PDF Chisel" width="128" />
+  <img src="assets/afrobat-icon.png" alt="アフロバット" width="128" />
 </p>
 
 <h1 align="center">PDF Edit Lite</h1>

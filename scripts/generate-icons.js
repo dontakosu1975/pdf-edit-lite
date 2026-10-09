@@ -1,12 +1,12 @@
 /**
  * Generate application icons from the source PNG.
  * Produces:
- *   - assets/icon.png       (1024x1024 master PNG)
- *   - assets/icon.ico        (Windows multi-size ICO: 16,32,48,64,128,256)
+ *   - assets/afrobat-icon-1024.png (1024x1024 master PNG)
+ *   - assets/afrobat-icon.ico      (Windows multi-size ICO: 16,32,48,64,128,256)
  *   - assets/icon.icns        (macOS — built from individual PNGs via iconutil if on Mac,
  *                              otherwise we create the 512x512 PNG for electron-builder)
  *   - assets/favicon.png     (32x32 for HTML)
- *   - assets/icon-256.png    (256x256 for Linux / electron-builder)
+ *   - assets/afrobat-icon.png (512x512 for Linux / electron-builder)
  *
  * Usage: node scripts/generate-icons.js
  */
@@ -15,7 +15,7 @@ const sharp = require('sharp');
 const fs = require('fs');
 const path = require('path');
 
-const SOURCE = path.join(__dirname, '..', 'assets', 'PDF Chisel Logo.png');
+const SOURCE = path.join(__dirname, '..', 'assets', 'afrobat-icon.png');
 const ASSETS = path.join(__dirname, '..', 'assets');
 
 const ICO_SIZES = [16, 32, 48, 64, 128, 256];
@@ -61,11 +61,11 @@ async function main() {
   console.log('Source:', SOURCE);
 
   // 1. Master 1024x1024 PNG (electron-builder uses this for macOS)
-  console.log('Generating master 1024x1024 icon.png ...');
+  console.log('Generating master 1024x1024 afrobat-icon-1024.png ...');
   await sharp(SOURCE)
     .resize(MASTER_SIZE, MASTER_SIZE, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
     .png()
-    .toFile(path.join(ASSETS, 'icon.png'));
+    .toFile(path.join(ASSETS, 'afrobat-icon-1024.png'));
 
   // 2. Generate individual PNGs for ICO
   const icoPngBuffers = [];
@@ -81,7 +81,7 @@ async function main() {
   // 3. Build ICO (manually — ICO is a simple container of PNGs)
   console.log('Building icon.ico ...');
   const icoBuffer = buildIco(icoPngBuffers);
-  fs.writeFileSync(path.join(ASSETS, 'icon.ico'), icoBuffer);
+  fs.writeFileSync(path.join(ASSETS, 'afrobat-icon.ico'), icoBuffer);
 
   // 4. Favicon (32x32 PNG)
   console.log('Generating favicon.png (32x32) ...');
@@ -91,11 +91,11 @@ async function main() {
     .toFile(path.join(ASSETS, 'favicon.png'));
 
   // 5. Linux icon (512x512)
-  console.log('Generating 512x512 for Linux ...');
+  console.log('Generating 512x512 afrobat-icon.png for Linux ...');
   await sharp(SOURCE)
     .resize(LINUX_SIZE, LINUX_SIZE, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
     .png()
-    .toFile(path.join(ASSETS, 'icon-512.png'));
+    .toFile(path.join(ASSETS, 'afrobat-icon.png'));
 
   console.log('Done! Icons written to assets/');
 }
