@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ja">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -18,40 +18,40 @@
 <body>
   <!-- ── Toolbar ──────────────────────────────────────────────── -->
   <header id="toolbar">
-    <button id="btn-open" title="Open PDF (Ctrl+O)">Open</button>
-    <button id="btn-save" title="Save (Ctrl+S)" disabled>Save</button>
-    <button id="btn-save-as" title="Save As (Ctrl+Shift+S)" disabled>Save As</button>
+    <button id="btn-open" title="PDFを開く（Ctrl+O）">開く</button>
+    <button id="btn-save" title="保存（Ctrl+S）" disabled>保存</button>
+    <button id="btn-save-as" title="名前を付けて保存（Ctrl+Shift+S）" disabled>名前を付けて保存</button>
 
     <span class="toolbar-separator"></span>
 
     <!-- Zoom controls -->
-    <button id="btn-zoom-out" title="Zoom Out (Ctrl+-)" disabled>−</button>
+    <button id="btn-zoom-out" title="縮小（Ctrl+-）" disabled>−</button>
     <span id="zoom-level">100%</span>
-    <button id="btn-zoom-in" title="Zoom In (Ctrl+=)" disabled>+</button>
-    <button id="btn-zoom-fit" title="Fit to Width" disabled>Fit</button>
+    <button id="btn-zoom-in" title="拡大（Ctrl+=）" disabled>+</button>
+    <button id="btn-zoom-fit" title="幅に合わせる" disabled>幅に合わせる</button>
 
     <span class="toolbar-separator"></span>
 
     <!-- Page navigation -->
-    <button id="btn-prev-page" title="Previous Page (PgUp)" disabled>◀</button>
-    <input id="page-input" type="number" min="1" value="1" title="Go to page" disabled />
+    <button id="btn-prev-page" title="前のページ（PgUp）" disabled>◀</button>
+    <input id="page-input" type="number" min="1" value="1" title="ページ番号" disabled />
     <span id="page-total">/ 0</span>
-    <button id="btn-next-page" title="Next Page (PgDn)" disabled>▶</button>
+    <button id="btn-next-page" title="次のページ（PgDn）" disabled>▶</button>
 
     <span class="toolbar-separator"></span>
 
     <!-- Editing tools -->
-    <button id="btn-tool-select" title="Select Tool (V)" disabled class="tool-btn active">Select</button>
-    <button id="btn-tool-edit-text" title="Edit Text (T)" disabled class="tool-btn">Text</button>
-    <button id="btn-tool-replace-image" title="Replace Image (I)" disabled class="tool-btn">Image</button>
+    <button id="btn-tool-select" title="選択ツール（V）" disabled class="tool-btn active">選択</button>
+    <button id="btn-tool-edit-text" title="文字を編集（T）" disabled class="tool-btn">文字編集</button>
+    <button id="btn-tool-replace-image" title="画像を置換（I）" disabled class="tool-btn">画像置換</button>
 
     <span class="toolbar-separator"></span>
 
     <!-- Undo / Redo -->
-    <button id="btn-undo" title="Undo (Ctrl+Z)" disabled>Undo</button>
-    <button id="btn-redo" title="Redo (Ctrl+Shift+Z)" disabled>Redo</button>
+    <button id="btn-undo" title="元に戻す（Ctrl+Z）" disabled>元に戻す</button>
+    <button id="btn-redo" title="やり直す（Ctrl+Shift+Z）" disabled>やり直す</button>
 
-    <span id="file-name">No file open</span>
+    <span id="file-name">ファイルが開かれていません</span>
     <span id="app-version" class="version-label"></span>
   </header>
 
@@ -59,12 +59,12 @@
   <main id="workspace">
     <aside id="thumbnails-panel">
       <!-- Thumbnails rendered here by Task 1-2 -->
-      <p class="placeholder">Thumbnails</p>
+      <p class="placeholder">ページ一覧</p>
     </aside>
     <section id="viewer-container">
       <!-- Canvas-based PDF rendering via PDFium -->
       <div id="drop-zone" class="empty-state">
-        <p>Drop a PDF here or click <strong>Open</strong></p>
+        <p>PDFをここへドロップするか、<strong>開く</strong>を押してください</p>
       </div>
       <div id="canvas-wrapper" style="display: none;">
         <canvas id="page-canvas"></canvas>
@@ -74,13 +74,13 @@
     </section>
     <aside id="properties-panel">
       <!-- Annotation/object properties by Tasks 1-3, 2-4 -->
-      <p class="placeholder">Properties</p>
+      <p class="placeholder">プロパティ</p>
     </aside>
   </main>
 
   <!-- ── Status bar ──────────────────────────────────────────── -->
   <footer id="status-bar">
-    <span id="status-text">Ready</span>
+    <span id="status-text">準備完了</span>
     <span id="dirty-indicator" style="display: none;">●</span>
     <span id="page-info"></span>
     <span id="zoom-info"></span>

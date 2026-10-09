@@ -195,7 +195,7 @@ async function init(): Promise<void> {
   document.addEventListener('keydown', handleKeyboard);
 
   // Subscribe to events from main
-  window.api.onDocumentError((error) => setStatus(`Error: ${error}`));
+  window.api.onDocumentError((error) => setStatus(`エラー: ${error}`));
 
   // Close guard
   window.addEventListener('beforeunload', (e) => {
@@ -206,15 +206,15 @@ async function init(): Promise<void> {
     }
   });
 
-  setStatus('Ready');
+  setStatus('準備完了');
 }
 
 // ── File handlers ───────────────────────────────────────────────────
 
 async function handleOpen(): Promise<void> {
-  setStatus('Opening file…');
+  setStatus('ファイルを開いています…');
   const result = await window.api.openFile();
-  if (!result) { setStatus('Ready'); return; }
+  if (!result) { setStatus('準備完了'); return; }
 
   // Close previous document if any
   if (state.docId) {
@@ -235,7 +235,7 @@ async function handleOpen(): Promise<void> {
     state.pageObjects = [];
     undoStack.clear();
   } catch (err) {
-    setStatus(`Failed to open PDF: ${(err as Error).message}`);
+    setStatus(`PDFを開けませんでした: ${(err as Error).message}`);
     return;
   }
 
@@ -255,12 +255,12 @@ async function handleOpen(): Promise<void> {
   await renderCurrentPage();
   await buildThumbnails();
 
-  setStatus(`Opened: ${fileName} (${state.pageCount} page${state.pageCount !== 1 ? 's' : ''})`);
+  setStatus(`開きました: ${fileName}（${state.pageCount}ページ）`);
 }
 
 async function handleSave(): Promise<void> {
   if (!state.docId || !state.filePath) return;
-  setStatus('Saving…');
+  setStatus('保存しています…');
 
   try {
     const result = await window.api.pdf.save({ docId: state.docId });
@@ -269,18 +269,18 @@ async function handleSave(): Promise<void> {
       state.modified = false;
       state.fileData = result.data;
       updateDirtyIndicator();
-      setStatus('Saved');
+      setStatus('保存しました');
     } else {
-      setStatus('Save failed');
+      setStatus('保存に失敗しました');
     }
   } catch (err) {
-    setStatus(`Save error: ${(err as Error).message}`);
+    setStatus(`保存エラー: ${(err as Error).message}`);
   }
 }
 
 async function handleSaveAs(): Promise<void> {
   if (!state.docId) return;
-  setStatus('Saving…');
+  setStatus('保存しています…');
 
   try {
     const result = await window.api.pdf.save({ docId: state.docId });
@@ -293,12 +293,12 @@ async function handleSaveAs(): Promise<void> {
       fileNameEl.textContent = fileName;
       document.title = `${fileName} — アフロバット`;
       updateDirtyIndicator();
-      setStatus(`Saved as: ${fileName}`);
+      setStatus(`名前を付けて保存しました: ${fileName}`);
     } else {
-      setStatus('Ready');
+      setStatus('準備完了');
     }
   } catch (err) {
-    setStatus(`Save error: ${(err as Error).message}`);
+    setStatus(`保存エラー: ${(err as Error).message}`);
   }
 }
 
@@ -329,7 +329,7 @@ async function handleDrop(e: DragEvent): Promise<void> {
     state.pageObjects = [];
     undoStack.clear();
   } catch (err) {
-    setStatus(`Failed to open PDF: ${(err as Error).message}`);
+    setStatus(`PDFを開けませんでした: ${(err as Error).message}`);
     return;
   }
 
@@ -346,7 +346,7 @@ async function handleDrop(e: DragEvent): Promise<void> {
   await renderCurrentPage();
   await buildThumbnails();
 
-  setStatus(`Opened: ${file.name}`);
+  setStatus(`開きました: ${file.name}`);
 }
 
 // ── Rendering ───────────────────────────────────────────────────────
@@ -388,7 +388,7 @@ async function renderCurrentPage(): Promise<void> {
     // Redraw selection overlay
     drawSelectionOverlay();
   } catch (err) {
-    setStatus(`Render error: ${(err as Error).message}`);
+    setStatus(`表示エラー: ${(err as Error).message}`);
   }
 }
 
@@ -693,7 +693,7 @@ async function handleReplaceImage(obj: PageObject): Promise<void> {
       },
       async undo(): Promise<void> {
         // TODO: Store original image for true undo — for now just re-render
-        setStatus('Image undo not fully supported yet');
+        setStatus('画像置換の取り消しは未対応です');
         await renderCurrentPage();
       },
     };
@@ -721,7 +721,7 @@ function updatePropertiesPanel(obj: PageObject | null): void {
   if (!panel) return;
 
   if (!obj) {
-    panel.innerHTML = '<p class="placeholder">Properties</p>';
+    panel.innerHTML = '<p class="placeholder">プロパティ</p>';
     return;
   }
 
@@ -830,5 +830,5 @@ function setStatus(text: string): void {
 // ── Boot ────────────────────────────────────────────────────────────
 init().catch((err) => {
   console.error('[Renderer] Init failed:', err);
-  setStatus('Initialization error');
+  setStatus('初期化エラー');
 });
