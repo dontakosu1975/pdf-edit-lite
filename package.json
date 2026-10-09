@@ -1,24 +1,137 @@
 {
   "name": "pdf-edit-lite",
-  "version": "0.1.0",
-  "private": true,
-  "main": "electron/main.cjs",
-  "description": "Local desktop PDF editor MVP",
+  "version": "0.2.0",
+  "description": "Offline desktop PDF editor with in-place text editing",
+  "main": "dist/main/index.js",
   "scripts": {
-    "dev": "concurrently -k \"vite --host 127.0.0.1\" \"wait-on http://127.0.0.1:5173 && electron .\"",
-    "build": "vite build",
-    "preview": "vite preview",
-    "start": "electron ."
+    "build": "tsc -p tsconfig.main.json && tsc -p tsconfig.preload.json && node scripts/bundle-preload.js && tsc -p tsconfig.renderer.json",
+    "download:pdfium": "node scripts/download-pdfium.js",
+    "build:native": "cd native/pdfium && node-gyp rebuild",
+    "start": "npm run build && electron dist/main/index.js",
+    "dev": "npm run build && electron dist/main/index.js --dev",
+    "lint": "eslint src --ext .ts",
+    "test": "jest",
+    "test:e2e": "npx playwright test",
+    "generate:fixtures": "node scripts/generate-fixtures.js",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder",
+    "dist:win": "electron-builder --win",
+    "dist:mac": "electron-builder --mac",
+    "dist:linux": "electron-builder --linux",
+    "build:msi": "node scripts/build-msi.js"
+  },
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@playwright/test": "^1.58.2",
+    "@types/node": "^20.11.0",
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0",
+    "electron-wix-msi": "^5.1.0",
+    "esbuild": "^0.27.3",
+    "node-gyp": "^12.2.0",
+    "pdf-lib": "^1.17.1",
+    "playwright": "^1.58.2",
+    "typescript": "^5.6.0"
   },
   "dependencies": {
-    "@pdf-lib/fontkit": "^1.1.1",
-    "pdf-lib": "^1.17.1",
-    "pdfjs-dist": "^4.10.38"
+    "electron-updater": "^6.3.0",
+    "node-addon-api": "^8.0.0"
   },
-  "devDependencies": {
-    "concurrently": "^9.1.2",
-    "electron": "^33.2.1",
-    "vite": "^7.1.7",
-    "wait-on": "^8.0.3"
+  "build": {
+    "appId": "com.pdfchisel.app",
+    "productName": "PDF Chisel",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "src/renderer/**/*.html",
+      "src/renderer/**/*.css",
+      "src/renderer/**/*.png",
+      "native/pdfium/build/Release/*"
+    ],
+    "asarUnpack": [
+      "native/pdfium/build/Release/*"
+    ],
+    "extraResources": [
+      {
+        "from": "native/pdfium/build/Release/",
+        "to": "native-addon",
+        "filter": [
+          "*.node",
+          "*.dll",
+          "*.so",
+          "*.dylib"
+        ]
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.ico",
+      "signtoolOptions": {
+        "publisherName": "PDF Chisel"
+      }
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "PDF Chisel",
+      "uninstallDisplayName": "PDF Chisel"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.icns",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "category": "public.app-category.productivity"
+    },
+    "dmg": {
+      "contents": [
+        {
+          "x": 130,
+          "y": 220
+        },
+        {
+          "x": 410,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.png",
+      "category": "Office"
+    },
+    "publish": null
   }
 }
